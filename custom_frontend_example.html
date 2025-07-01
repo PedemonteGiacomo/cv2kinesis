@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Custom Frontend Integration Example</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .status-panel {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 30px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .status-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .status-label {
+            font-weight: bold;
+            min-width: 150px;
+        }
+
+        .status-value {
+            font-family: 'Courier New', monospace;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 5px 10px;
+            border-radius: 8px;
+            flex: 1;
+            margin-left: 15px;
+        }
+
+        .connection-status {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+
+        .connected {
+            background: #00ff88;
+            color: #333;
+        }
+
+        .disconnected {
+            background: #ff4757;
+            color: white;
+        }
+
+        .connecting {
+            background: #ffa502;
+            color: #333;
+        }
+
+        .controls {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .btn {
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 25px;
+            font-weight: bold;
+            cursor: pointer;
+            margin: 0 10px;
+            transition: all 0.3s ease;
+            font-size: 1rem;
+        }
+
+        .btn:hover {
+            background: white;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .detection-feed {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        .detection-feed h3 {
+            margin-bottom: 20px;
+            text-align: center;
+            font-size: 1.5rem;
+        }
+
+        .detection-item {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-left: 4px solid #00ff88;
+        }
+
+        .detection-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .detection-stream {
+            font-weight: bold;
+            color: #00ff88;
+            text-transform: uppercase;
+        }
+
+        .detection-timestamp {
+            font-size: 0.9rem;
+            opacity: 0.7;
+            font-family: 'Courier New', monospace;
+        }
+
+        .detection-stats {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 10px;
+            font-size: 0.9rem;
+        }
+
+        .detection-stat {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 5px 10px;
+            border-radius: 8px;
+        }
+
+        .objects-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .object-tag {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            white-space: nowrap;
+        }
+
+        .frame-preview {
+            margin-top: 10px;
+        }
+
+        .frame-preview img {
+            max-width: 200px;
+            max-height: 150px;
+            border-radius: 8px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .no-data {
+            text-align: center;
+            opacity: 0.7;
+            font-style: italic;
+            padding: 40px;
+        }
+
+        .json-view {
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 8px;
+            padding: 10px;
+            margin-top: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.8rem;
+            overflow-x: auto;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎯 Custom Frontend Integration</h1>
+            <p>Live connection to backend processor via WebSocket</p>
+        </div>
+
+        <div class="status-panel">
+            <div class="status-row">
+                <span class="status-label">Connection:</span>
+                <span id="connectionStatus" class="connection-status disconnected">Disconnected</span>
+            </div>
+            <div class="status-row">
+                <span class="status-label">WebSocket URL:</span>
+                <span class="status-value" id="websocketUrl">ws://localhost:8080</span>
+            </div>
+            <div class="status-row">
+                <span class="status-label">Messages Received:</span>
+                <span class="status-value" id="messageCount">0</span>
+            </div>
+            <div class="status-row">
+                <span class="status-label">Last Update:</span>
+                <span class="status-value" id="lastUpdate">Never</span>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button class="btn" id="connectBtn" onclick="connect()">Connect</button>
+            <button class="btn" id="disconnectBtn" onclick="disconnect()" disabled>Disconnect</button>
+            <button class="btn" id="requestLatestBtn" onclick="requestLatest()" disabled>Request Latest</button>
+            <button class="btn" id="clearFeedBtn" onclick="clearFeed()">Clear Feed</button>
+        </div>
+
+        <div class="detection-feed">
+            <h3>🔍 Live Detection Feed</h3>
+            <div id="detectionFeed" class="no-data">
+                Waiting for connection to backend processor...
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class CustomFrontendClient {
+            constructor() {
+                this.ws = null;
+                this.websocketUrl = 'ws://localhost:8080';
+                this.messageCount = 0;
+                this.autoReconnect = true;
+                this.reconnectDelay = 3000;
+                this.maxDetections = 20; // Limite visualizzazioni
+            }
+
+            connect() {
+                if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                    console.log('Already connected');
+                    return;
+                }
+
+                console.log('🔌 Connecting to backend processor...');
+                this.updateConnectionStatus('connecting');
+
+                this.ws = new WebSocket(this.websocketUrl);
+
+                this.ws.onopen = () => {
+                    console.log('✅ Connected to backend processor');
+                    this.updateConnectionStatus('connected');
+                    this.enableControls(true);
+                    
+                    // Request status
+                    this.sendCommand('get_status');
+                };
+
+                this.ws.onmessage = (event) => {
+                    try {
+                        const message = JSON.parse(event.data);
+                        this.handleMessage(message);
+                    } catch (e) {
+                        console.error('❌ Error parsing message:', e);
+                    }
+                };
+
+                this.ws.onclose = () => {
+                    console.log('❌ Connection closed');
+                    this.updateConnectionStatus('disconnected');
+                    this.enableControls(false);
+
+                    if (this.autoReconnect) {
+                        console.log(`🔄 Reconnecting in ${this.reconnectDelay/1000}s...`);
+                        setTimeout(() => this.connect(), this.reconnectDelay);
+                    }
+                };
+
+                this.ws.onerror = (error) => {
+                    console.error('❌ WebSocket error:', error);
+                    this.updateConnectionStatus('disconnected');
+                };
+            }
+
+            disconnect() {
+                this.autoReconnect = false;
+                if (this.ws) {
+                    this.ws.close();
+                    this.ws = null;
+                }
+                this.updateConnectionStatus('disconnected');
+                this.enableControls(false);
+            }
+
+            sendCommand(command, params = {}) {
+                if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                    const message = {
+                        command: command,
+                        ...params
+                    };
+                    this.ws.send(JSON.stringify(message));
+                    console.log('📤 Sent command:', command);
+                } else {
+                    console.warn('⚠️ WebSocket not connected');
+                }
+            }
+
+            handleMessage(message) {
+                console.log('📨 Received:', message);
+                this.messageCount++;
+                this.updateMessageCount();
+                this.updateLastUpdate();
+
+                switch (message.type) {
+                    case 'connection_established':
+                        this.showNotification('✅ Connected to backend processor', 'success');
+                        break;
+
+                    case 'detection_update':
+                        this.addDetectionToFeed(message.data);
+                        break;
+
+                    case 'status_response':
+                        this.handleStatusResponse(message.data);
+                        break;
+
+                    case 'error':
+                        this.showNotification(`❌ Error: ${message.message}`, 'error');
+                        break;
+
+                    default:
+                        console.log('Unknown message type:', message.type);
+                }
+            }
+
+            addDetectionToFeed(data) {
+                const feed = document.getElementById('detectionFeed');
+                
+                // Remove "no data" message
+                if (feed.classList.contains('no-data')) {
+                    feed.className = '';
+                    feed.innerHTML = '';
+                }
+
+                // Create detection item
+                const item = document.createElement('div');
+                item.className = 'detection-item';
+
+                const timestamp = new Date(data.timestamp).toLocaleTimeString();
+                const objects = data.objects || [];
+
+                item.innerHTML = `
+                    <div class="detection-header">
+                        <span class="detection-stream">📹 ${data.stream_name}</span>
+                        <span class="detection-timestamp">${timestamp}</span>
+                    </div>
+                    <div class="detection-stats">
+                        <div class="detection-stat">Frame: ${data.frame_index}</div>
+                        <div class="detection-stat">Objects: ${data.detections_count}</div>
+                    </div>
+                    <div class="objects-list">
+                        ${objects.map(obj => 
+                            `<span class="object-tag">${obj.class} (${(obj.conf * 100).toFixed(1)}%)</span>`
+                        ).join('')}
+                    </div>
+                    ${data.frame_url ? `
+                        <div class="frame-preview">
+                            <img src="${data.frame_url}" alt="Processed frame" 
+                                 onerror="this.style.display='none'" />
+                        </div>
+                    ` : ''}
+                    <div class="json-view" style="display: none;">
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    </div>
+                `;
+
+                // Add click to show JSON
+                item.addEventListener('click', () => {
+                    const jsonView = item.querySelector('.json-view');
+                    jsonView.style.display = jsonView.style.display === 'none' ? 'block' : 'none';
+                });
+
+                // Insert at top
+                feed.insertBefore(item, feed.firstChild);
+
+                // Limit number of items
+                while (feed.children.length > this.maxDetections) {
+                    feed.removeChild(feed.lastChild);
+                }
+
+                // Highlight new item
+                item.classList.add('pulse');
+                setTimeout(() => item.classList.remove('pulse'), 2000);
+            }
+
+            handleStatusResponse(data) {
+                console.log('📊 Backend status:', data);
+                this.showNotification(`📊 Backend: ${data.connected_clients} clients, polling ${data.polling_active ? 'active' : 'inactive'}`, 'info');
+            }
+
+            updateConnectionStatus(status) {
+                const statusElement = document.getElementById('connectionStatus');
+                statusElement.className = `connection-status ${status}`;
+                
+                switch (status) {
+                    case 'connected':
+                        statusElement.textContent = '✅ Connected';
+                        break;
+                    case 'connecting':
+                        statusElement.textContent = '🔄 Connecting...';
+                        break;
+                    case 'disconnected':
+                        statusElement.textContent = '❌ Disconnected';
+                        break;
+                }
+            }
+
+            enableControls(enabled) {
+                document.getElementById('connectBtn').disabled = enabled;
+                document.getElementById('disconnectBtn').disabled = !enabled;
+                document.getElementById('requestLatestBtn').disabled = !enabled;
+            }
+
+            updateMessageCount() {
+                document.getElementById('messageCount').textContent = this.messageCount;
+            }
+
+            updateLastUpdate() {
+                document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+            }
+
+            showNotification(message, type = 'info') {
+                // Simple console notification for now
+                console.log(`[${type.toUpperCase()}] ${message}`);
+                
+                // Could implement toast notifications here
+            }
+        }
+
+        // Global client instance
+        let client = new CustomFrontendClient();
+
+        // Control functions
+        function connect() {
+            client.autoReconnect = true;
+            client.connect();
+        }
+
+        function disconnect() {
+            client.disconnect();
+        }
+
+        function requestLatest() {
+            client.sendCommand('request_latest');
+        }
+
+        function clearFeed() {
+            const feed = document.getElementById('detectionFeed');
+            feed.innerHTML = '<div class="no-data">Feed cleared. Waiting for new detections...</div>';
+            feed.className = 'no-data';
+        }
+
+        // Auto-connect on page load
+        window.addEventListener('load', () => {
+            console.log('🚀 Custom Frontend Integration Example loaded');
+            console.log('📋 Make sure custom_frontend_integration_example.py is running');
+            
+            // Auto-connect after 2 seconds
+            setTimeout(() => {
+                console.log('🔄 Auto-connecting...');
+                connect();
+            }, 2000);
+        });
+
+        // Handle page unload
+        window.addEventListener('beforeunload', () => {
+            if (client) {
+                client.disconnect();
+            }
+        });
+    </script>
+</body>
+</html>

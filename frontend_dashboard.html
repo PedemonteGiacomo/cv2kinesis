@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎮 Multi-Video Detection Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header .subtitle {
+            font-size: 1.2rem;
+            opacity: 0.8;
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(480px, 1fr));
+            gap: 25px;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        .video-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 25px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .video-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .card-title {
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        .status-active {
+            background-color: #00ff88;
+        }
+
+        .status-inactive {
+            background-color: #ff4444;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .video-preview {
+            width: 100%;
+            height: 200px;
+            background: #000;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: rgba(255, 255, 255, 0.7);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .video-preview.has-content {
+            color: transparent;
+        }
+
+        .detection-stats {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .stat-item {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 10px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: #00ff88;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            opacity: 0.8;
+            margin-top: 5px;
+        }
+
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .control-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .control-row label {
+            min-width: 80px;
+            font-size: 0.9rem;
+        }
+
+        select, input, button {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
+            font-size: 0.9rem;
+        }
+
+        select {
+            flex: 1;
+        }
+
+        button {
+            background: #00ff88;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+
+        button:hover {
+            background: #00cc6a;
+        }
+
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+
+        .detection-overlay {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 255, 136, 0.9);
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+
+        .global-controls {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .global-controls button {
+            margin: 0 10px;
+            padding: 12px 25px;
+            font-size: 1rem;
+        }
+
+        .connection-status {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 10px 15px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            z-index: 1000;
+        }
+
+        .connected {
+            background: rgba(0, 255, 136, 0.9);
+        }
+
+        .disconnected {
+            background: rgba(255, 68, 68, 0.9);
+        }
+
+        /* Card specific colors */
+        .traffic-card .card-title { color: #ff6b6b; }
+        .security-card .card-title { color: #4ecdc4; }
+        .people-card .card-title { color: #45b7d1; }
+        .sports-card .card-title { color: #f9ca24; }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .video-card {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="connection-status" id="connectionStatus">
+        🔴 Disconnesso
+    </div>
+
+    <div class="header">
+        <h1>🎮 Multi-Video Detection Dashboard</h1>
+        <div class="subtitle">Real-time Object Detection con YOLOv8 e AWS</div>
+    </div>
+
+    <div class="global-controls">
+        <button onclick="startAllStreams()">🚀 Avvia Tutti</button>
+        <button onclick="stopAllStreams()">🛑 Ferma Tutti</button>
+        <button onclick="refreshStatus()">🔄 Aggiorna Status</button>
+    </div>
+
+    <div class="dashboard-grid">
+        <!-- Traffic Monitor Card -->
+        <div class="video-card traffic-card" id="traffic-card">
+            <div class="card-header">
+                <div class="card-title">🚗 Traffic Monitor</div>
+                <div class="status-indicator status-inactive" id="traffic-status"></div>
+            </div>
+            
+            <div class="video-preview" id="traffic-preview">
+                📹 In attesa stream...
+            </div>
+            
+            <div class="detection-stats">
+                <div class="stat-item">
+                    <div class="stat-value" id="traffic-objects">0</div>
+                    <div class="stat-label">Veicoli</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="traffic-confidence">0%</div>
+                    <div class="stat-label">Confidenza</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="traffic-fps">0</div>
+                    <div class="stat-label">FPS</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="traffic-latest">--:--</div>
+                    <div class="stat-label">Ultimo Update</div>
+                </div>
+            </div>
+            
+            <div class="controls">
+                <div class="control-row">
+                    <label>Sorgente:</label>
+                    <select id="traffic-source">
+                        <option value="demo_videos/traffic.mp4">Traffic Demo</option>
+                        <option value="webcam">Live Webcam</option>
+                        <option value="demo_videos/highway.mp4">Highway Demo</option>
+                    </select>
+                    <button onclick="switchSource('traffic')">🔄 Switch</button>
+                </div>
+                <div class="control-row">
+                    <label>Veicoli:</label>
+                    <input type="text" id="traffic-classes" value="car,truck,bus,motorcycle" placeholder="Classes filter">
+                </div>
+                <div class="control-row">
+                    <label>FPS:</label>
+                    <input type="number" id="traffic-fps-limit" value="8" min="1" max="30">
+                    <button onclick="updateConfig('traffic')">⚙️ Update</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Security Monitor Card -->
+        <div class="video-card security-card" id="security-card">
+            <div class="card-header">
+                <div class="card-title">👮 Security Monitor</div>
+                <div class="status-indicator status-inactive" id="security-status"></div>
+            </div>
+            
+            <div class="video-preview" id="security-preview">
+                📹 In attesa stream...
+            </div>
+            
+            <div class="detection-stats">
+                <div class="stat-item">
+                    <div class="stat-value" id="security-objects">0</div>
+                    <div class="stat-label">Persone</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="security-confidence">0%</div>
+                    <div class="stat-label">Confidenza</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="security-fps">0</div>
+                    <div class="stat-label">FPS</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="security-latest">--:--</div>
+                    <div class="stat-label">Ultimo Update</div>
+                </div>
+            </div>
+            
+            <div class="controls">
+                <div class="control-row">
+                    <label>Sorgente:</label>
+                    <select id="security-source">
+                        <option value="demo_videos/security.mp4">Security Demo</option>
+                        <option value="webcam">Live Webcam</option>
+                        <option value="demo_videos/lobby.mp4">Lobby Demo</option>
+                    </select>
+                    <button onclick="switchSource('security')">🔄 Switch</button>
+                </div>
+                <div class="control-row">
+                    <label>Target:</label>
+                    <input type="text" id="security-classes" value="person" placeholder="Classes filter">
+                </div>
+                <div class="control-row">
+                    <label>FPS:</label>
+                    <input type="number" id="security-fps-limit" value="10" min="1" max="30">
+                    <button onclick="updateConfig('security')">⚙️ Update</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- People Counter Card -->
+        <div class="video-card people-card" id="people-card">
+            <div class="card-header">
+                <div class="card-title">👥 People Counter</div>
+                <div class="status-indicator status-inactive" id="people-status"></div>
+            </div>
+            
+            <div class="video-preview" id="people-preview">
+                📹 In attesa stream...
+            </div>
+            
+            <div class="detection-stats">
+                <div class="stat-item">
+                    <div class="stat-value" id="people-objects">0</div>
+                    <div class="stat-label">Persone</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="people-confidence">0%</div>
+                    <div class="stat-label">Confidenza</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="people-fps">0</div>
+                    <div class="stat-label">FPS</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="people-latest">--:--</div>
+                    <div class="stat-label">Ultimo Update</div>
+                </div>
+            </div>
+            
+            <div class="controls">
+                <div class="control-row">
+                    <label>Sorgente:</label>
+                    <select id="people-source">
+                        <option value="demo_videos/people.mp4">People Demo</option>
+                        <option value="webcam">Live Webcam</option>
+                        <option value="demo_videos/crowd.mp4">Crowd Demo</option>
+                    </select>
+                    <button onclick="switchSource('people')">🔄 Switch</button>
+                </div>
+                <div class="control-row">
+                    <label>Target:</label>
+                    <input type="text" id="people-classes" value="person" placeholder="Classes filter">
+                </div>
+                <div class="control-row">
+                    <label>FPS:</label>
+                    <input type="number" id="people-fps-limit" value="12" min="1" max="30">
+                    <button onclick="updateConfig('people')">⚙️ Update</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sports Analysis Card -->
+        <div class="video-card sports-card" id="sports-card">
+            <div class="card-header">
+                <div class="card-title">⚽ Sports Analysis</div>
+                <div class="status-indicator status-inactive" id="sports-status"></div>
+            </div>
+            
+            <div class="video-preview" id="sports-preview">
+                📹 In attesa stream...
+            </div>
+            
+            <div class="detection-stats">
+                <div class="stat-item">
+                    <div class="stat-value" id="sports-objects">0</div>
+                    <div class="stat-label">Oggetti</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="sports-confidence">0%</div>
+                    <div class="stat-label">Confidenza</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="sports-fps">0</div>
+                    <div class="stat-label">FPS</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="sports-latest">--:--</div>
+                    <div class="stat-label">Ultimo Update</div>
+                </div>
+            </div>
+            
+            <div class="controls">
+                <div class="control-row">
+                    <label>Sorgente:</label>
+                    <select id="sports-source">
+                        <option value="demo_videos/sports.mp4">Sports Demo</option>
+                        <option value="webcam">Live Webcam</option>
+                        <option value="demo_videos/football.mp4">Football Demo</option>
+                    </select>
+                    <button onclick="switchSource('sports')">🔄 Switch</button>
+                </div>
+                <div class="control-row">
+                    <label>Target:</label>
+                    <input type="text" id="sports-classes" value="person,sports ball" placeholder="Classes filter">
+                </div>
+                <div class="control-row">
+                    <label>FPS:</label>
+                    <input type="number" id="sports-fps-limit" value="15" min="1" max="30">
+                    <button onclick="updateConfig('sports')">⚙️ Update</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class MultiVideoController {
+            constructor() {
+                this.websocket = null;
+                this.streams = ['traffic', 'security', 'people', 'sports'];
+                this.reconnectAttempts = 0;
+                this.maxReconnectAttempts = 5;
+                
+                this.setupWebSocket();
+                this.setupEventListeners();
+                this.updateConnectionStatus(false);
+                
+                // Simula dati per demo (rimuovi in produzione)
+                this.startDemoMode();
+            }
+            
+            setupWebSocket() {
+                // Connessione WebSocket reale
+                try {
+                    // Determina URL WebSocket in base al protocollo corrente
+                    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                    const wsHost = window.location.hostname || 'localhost';
+                    const wsPort = '8080'; // Porta fissa per WebSocket
+                    const wsUrl = `${wsProtocol}//${wsHost}:${wsPort}`;
+                    
+                    console.log(`🔗 Connessione WebSocket: ${wsUrl}`);
+                    this.websocket = new WebSocket(wsUrl);
+                    
+                    this.websocket.onopen = () => {
+                        console.log('✅ WebSocket connesso');
+                        this.updateConnectionStatus(true);
+                        this.reconnectAttempts = 0;
+                    };
+                    
+                    this.websocket.onmessage = (event) => {
+                        try {
+                            const data = JSON.parse(event.data);
+                            console.log('📨 Messaggio WebSocket ricevuto:', data);
+                            
+                            if (data.type === 'detection_update') {
+                                this.handleDetectionUpdate(data.data);
+                            } else if (data.type === 'command_response') {
+                                console.log(`✅ Comando confermato: ${data.command}`);
+                            } else if (data.type === 'initial_status') {
+                                console.log('📊 Status iniziale ricevuto');
+                                this.handleInitialStatus(data.data);
+                            }
+                        } catch (e) {
+                            console.error('❌ Errore parsing messaggio WebSocket:', e);
+                        }
+                    };
+                    
+                    this.websocket.onclose = () => {
+                        console.log('❌ WebSocket disconnesso');
+                        this.updateConnectionStatus(false);
+                        this.attemptReconnect();
+                    };
+                    
+                    this.websocket.onerror = (error) => {
+                        console.error('❌ Errore WebSocket:', error);
+                        this.updateConnectionStatus(false);
+                    };
+                    
+                } catch (error) {
+                    console.error('❌ Impossibile creare WebSocket:', error);
+                    this.updateConnectionStatus(false);
+                    this.startDemoMode();
+                }
+            }
+            
+            handleInitialStatus(statusData) {
+                console.log('📊 Aggiornamento status iniziale:', statusData);
+                
+                // Aggiorna indicatori di status per ogni stream
+                for (const [streamName, status] of Object.entries(statusData)) {
+                    this.updateStreamStatus(streamName, status.active || false);
+                }
+            }
+            
+            attemptReconnect() {
+                if (this.reconnectAttempts < this.maxReconnectAttempts) {
+                    this.reconnectAttempts++;
+                    console.log(`🔄 Tentativo riconnessione ${this.reconnectAttempts}/${this.maxReconnectAttempts}`);
+                    
+                    setTimeout(() => {
+                        this.setupWebSocket();
+                    }, 3000 * this.reconnectAttempts);
+                }
+            }
+            
+            updateConnectionStatus(connected) {
+                const statusEl = document.getElementById('connectionStatus');
+                if (connected) {
+                    statusEl.textContent = '🟢 Connesso';
+                    statusEl.className = 'connection-status connected';
+                } else {
+                    statusEl.textContent = '🔴 Disconnesso';
+                    statusEl.className = 'connection-status disconnected';
+                }
+            }
+            
+            setupEventListeners() {
+                // Auto-refresh status ogni 10 secondi
+                setInterval(() => {
+                    this.refreshStreamStatus();
+                }, 10000);
+            }
+            
+            handleDetectionUpdate(data) {
+                const streamName = data.stream_name;
+                
+                if (!this.streams.includes(streamName)) {
+                    console.warn(`⚠️ Stream sconosciuto: ${streamName}`);
+                    return;
+                }
+                
+                // Aggiorna statistiche
+                document.getElementById(`${streamName}-objects`).textContent = data.object_count || 0;
+                document.getElementById(`${streamName}-confidence`).textContent = `${Math.round(data.avg_confidence || 0)}%`;
+                document.getElementById(`${streamName}-fps`).textContent = data.fps || 0;
+                
+                // Aggiorna timestamp
+                const now = new Date();
+                const timeStr = now.toLocaleTimeString('it-IT', { hour12: false }).slice(0, 5);
+                document.getElementById(`${streamName}-latest`).textContent = timeStr;
+                
+                // Aggiorna preview se disponibile
+                if (data.frame_url) {
+                    const previewEl = document.getElementById(`${streamName}-preview`);
+                    previewEl.style.backgroundImage = `url("${data.frame_url}")`;
+                    previewEl.classList.add('has-content');
+                    previewEl.textContent = ''; // Rimuovi testo placeholder
+                    
+                    // Aggiungi overlay con detection info
+                    if (data.object_count > 0) {
+                        let overlay = previewEl.querySelector('.detection-overlay');
+                        if (!overlay) {
+                            overlay = document.createElement('div');
+                            overlay.className = 'detection-overlay';
+                            previewEl.style.position = 'relative';
+                            previewEl.appendChild(overlay);
+                        }
+                        overlay.textContent = `${data.object_count} oggetti`;
+                    }
+                }
+                
+                // Aggiorna status
+                this.updateStreamStatus(streamName, true);
+            }
+            
+            updateStreamStatus(streamName, isActive) {
+                const statusEl = document.getElementById(`${streamName}-status`);
+                statusEl.className = `status-indicator ${isActive ? 'status-active' : 'status-inactive'}`;
+            }
+            
+            async sendCommand(command, params = {}) {
+                console.log(`📤 Invio comando: ${command}`, params);
+                
+                // Prova prima WebSocket se connesso
+                if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+                    try {
+                        const message = JSON.stringify({ command, ...params });
+                        this.websocket.send(message);
+                        console.log('✅ Comando inviato via WebSocket');
+                        return;
+                    } catch (error) {
+                        console.warn('⚠️ Errore invio WebSocket:', error);
+                    }
+                }
+                
+                // Fallback HTTP API
+                try {
+                    const response = await fetch('/api/command', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ command, ...params })
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
+                    
+                    const result = await response.json();
+                    console.log('✅ Comando eseguito via HTTP:', result);
+                    
+                } catch (error) {
+                    console.warn('⚠️ API non disponibile, usando modalità demo locale');
+                    // In modalità demo locale, simula risposta
+                    this.handleDemoCommand(command, params);
+                }
+            }
+            
+            handleDemoCommand(command, params) {
+                console.log(`🎭 Demo comando: ${command}`, params);
+                
+                // Simula feedback per i comandi
+                if (command === 'start_all_streams') {
+                    console.log('🚀 Demo: Avvio tutti gli stream');
+                } else if (command === 'stop_all_streams') {
+                    console.log('🛑 Demo: Fermo tutti gli stream');
+                } else if (command === 'switch_source') {
+                    console.log(`🔄 Demo: Switch ${params.stream_name} → ${params.new_source}`);
+                } else if (command === 'update_config') {
+                    console.log(`⚙️ Demo: Config ${params.stream_name}`, params);
+                }
+            }
+            
+            refreshStreamStatus() {
+                this.sendCommand('get_status');
+            }
+            
+            // Demo mode per test senza backend (rimuovi in produzione)
+            startDemoMode() {
+                console.log('🎭 Modalità demo attiva');
+                
+                setInterval(() => {
+                    this.streams.forEach(streamName => {
+                        const demoData = {
+                            stream_name: streamName,
+                            object_count: Math.floor(Math.random() * 10) + 1,
+                            avg_confidence: Math.floor(Math.random() * 30) + 70,
+                            fps: Math.floor(Math.random() * 5) + 8,
+                            frame_url: null // No frame per demo
+                        };
+                        
+                        this.handleDetectionUpdate(demoData);
+                    });
+                }, 2000);
+                
+                // Simula connessione dopo 3 secondi
+                setTimeout(() => {
+                    this.updateConnectionStatus(true);
+                }, 3000);
+            }
+        }
+        
+        // Controller globale
+        let controller;
+        
+        // Funzioni globali per i bottoni
+        function startAllStreams() {
+            controller.sendCommand('start_all_streams');
+            console.log('🚀 Comando: Avvia tutti gli stream');
+        }
+        
+        function stopAllStreams() {
+            controller.sendCommand('stop_all_streams');
+            console.log('🛑 Comando: Ferma tutti gli stream');
+        }
+        
+        function refreshStatus() {
+            controller.refreshStreamStatus();
+            console.log('🔄 Comando: Aggiorna status');
+        }
+        
+        function switchSource(streamName) {
+            const sourceEl = document.getElementById(`${streamName}-source`);
+            const newSource = sourceEl.value;
+            
+            controller.sendCommand('switch_source', {
+                stream_name: streamName,
+                new_source: newSource
+            });
+            
+            console.log(`🔄 Switch ${streamName} → ${newSource}`);
+        }
+        
+        function updateConfig(streamName) {
+            const classesEl = document.getElementById(`${streamName}-classes`);
+            const fpsEl = document.getElementById(`${streamName}-fps-limit`);
+            
+            const classes = classesEl.value.split(',').map(c => c.trim()).filter(c => c);
+            const fpsLimit = parseInt(fpsEl.value);
+            
+            controller.sendCommand('update_config', {
+                stream_name: streamName,
+                detection_classes: classes.length > 0 ? classes : null,
+                fps_limit: fpsLimit
+            });
+            
+            console.log(`⚙️ Config ${streamName}: classes=${classes}, fps=${fpsLimit}`);
+        }
+        
+        // Inizializza quando la pagina è caricata
+        document.addEventListener('DOMContentLoaded', () => {
+            controller = new MultiVideoController();
+            console.log('🎮 Dashboard inizializzato');
+        });
+    </script>
+</body>
+</html>

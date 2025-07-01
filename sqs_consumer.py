@@ -7,6 +7,8 @@ import boto3
 import json
 import time
 import logging
+import glob
+import os
 from typing import Dict, Any
 
 logging.basicConfig(
@@ -22,6 +24,24 @@ class ProcessingResultsConsumer:
         self.region = region
         self.sqs = boto3.client('sqs', region_name=region)
         self.s3 = boto3.client('s3', region_name=region)
+        
+        # Pulizia automatica file scaricati precedenti
+        self.cleanup_downloaded_frames()
+    
+    def cleanup_downloaded_frames(self):
+        """Pulizia automatica dei file downloaded_frame_*"""
+        try:
+            frame_files = glob.glob("downloaded_frame_*")
+            if frame_files:
+                logger.info(f"Pulizia {len(frame_files)} file scaricati precedenti...")
+                for file in frame_files:
+                    try:
+                        os.remove(file)
+                        logger.info(f"   Rimosso: {file}")
+                    except Exception as e:
+                        logger.warning(f"   Errore rimozione {file}: {e}")
+        except Exception as e:
+            logger.warning(f"Errore durante pulizia: {e}")
         
     def poll_messages(self, max_messages: int = 10, wait_time: int = 20):
         """Poll SQS for messages"""

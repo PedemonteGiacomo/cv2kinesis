@@ -52,18 +52,31 @@ def main():
                 },
                 diagrams=[
                     {
-                        # Nome del primo diagramma
-                        "name": "video-pipeline-architecture",
-                        "title": "Video Pipeline Architecture - Real-time Object Detection",
-                        # Eredita filterPlan e theme dai defaults
+                        # Nome del primo diagramma - Horizontal Flow
+                        "name": "video-pipeline-horizontal",
+                        "title": "Video Pipeline - Horizontal Flow",
+                        "layout": {
+                            "rankdir": "LR",  # Left to Right
+                        }
                     },
                     {
-                        # Secondo diagramma con vista completa
+                        # Secondo diagramma - Vertical Flow  
+                        "name": "video-pipeline-vertical",
+                        "title": "Video Pipeline - Vertical Flow",
+                        "layout": {
+                            "rankdir": "TB",  # Top to Bottom
+                        }
+                    },
+                    {
+                        # Terzo diagramma con vista completa
                         "name": "detailed-architecture", 
                         "title": "Detailed Infrastructure View",
                         "filter_plan": {
                             "preset": FilterPreset.NON_EXTRANEOUS,
                         },
+                        "layout": {
+                            "rankdir": "TB",
+                        }
                     }
                 ]
             )
