@@ -35,7 +35,6 @@ class VideoPipelineStack(Stack):
             "ProcessingResultsQueue",
             queue_name="processing-results",
             visibility_timeout=Duration.seconds(300),
-            message_retention_period=Duration.days(14),
         )
 
         # Kinesis stream for frames

@@ -46,8 +46,8 @@ def deploy_stack():
     """Deploy CDK stack"""
     print("☁️ Deploying CDK stack...")
     
-    result = subprocess.run(["cdk", "deploy", "VideoPipelineStack", "--require-approval", "never"], 
-                          cwd="cdk")
+    result = subprocess.run("cdk deploy --require-approval never", 
+                          shell=True, cwd="cdk")
     if result.returncode != 0:
         print("❌ CDK deploy failed")
         return False, {}
