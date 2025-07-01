@@ -58,7 +58,7 @@ class VideoPipelineStack(Stack):
         image_uri = (
             self.node.try_get_context("image_uri")
             or os.environ.get("IMAGE_URI")
-            or "public.ecr.aws/placeholder/cv2kinesis:latest"
+            or "544547773663.dkr.ecr.eu-central-1.amazonaws.com/cv2kinesis:latest"
         )
 
         # Handle ECR repository permissions properly
