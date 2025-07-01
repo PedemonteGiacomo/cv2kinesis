@@ -171,12 +171,22 @@ And that's all. Real-time Object Detection with Kinesis stream. However, compute
 
 ## Deploying the Serverless Demo
 
-Use the CDK project in `cdk/` to provision Kinesis and an ECS Fargate service that runs the container from `stream_service/`. Build and push the container image to ECR, then run:
+Use the CDK project in `cdk/` to provision Kinesis and an ECS Fargate service that runs the container from `stream_service/`. Build and push the container image to Amazon ECR, then deploy the stack:
 
 ```bash
-cd stream_service && docker build -t myrepo/cv2kinesis:latest .
-# push image to ECR (not shown)
-cd ../cdk && cdk deploy
+cd stream_service && docker build -t cv2kinesis:latest .
+
+# create or locate an ECR repository
+aws ecr create-repository --repository-name cv2kinesis || true
+AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+AWS_REGION=eu-central-1  # adjust if needed
+aws ecr get-login-password --region $AWS_REGION | \
+  docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
+docker tag cv2kinesis:latest $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/cv2kinesis:latest
+docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/cv2kinesis:latest
+
+# deploy using the pushed image
+cd ../cdk && cdk deploy -c image_uri=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/cv2kinesis:latest
 ```
 
 The stack outputs the Kinesis stream name and the URL where the processed video can be viewed. Destroy all resources with `cdk destroy`.

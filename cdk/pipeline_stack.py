@@ -1,3 +1,4 @@
+import os
 from aws_cdk import (
     Stack,
     aws_ec2 as ec2,
@@ -30,9 +31,15 @@ class VideoPipelineStack(Stack):
             memory_limit_mib=2048,
         )
 
+        image_uri = (
+            self.node.try_get_context("image_uri")
+            or os.environ.get("IMAGE_URI")
+            or "public.ecr.aws/placeholder/cv2kinesis:latest"
+        )
+
         container = task.add_container(
             "DetectorContainer",
-            image=ecs.ContainerImage.from_registry("public.ecr.aws/placeholder/cv2kinesis:latest"),
+            image=ecs.ContainerImage.from_registry(image_uri),
             logging=ecs.LogDrivers.aws_logs(stream_prefix="yolo"),
             environment={
                 "KINESIS_STREAM_NAME": stream.stream_name,

@@ -16,9 +16,9 @@ Resources provisioned:
    source .venv/bin/activate
    pip install -r requirements.txt
    ```
-2. Deploy the stack:
+2. Deploy the stack, specifying the URI of your container image (as pushed to ECR):
    ```bash
-   cdk deploy
+   cdk deploy -c image_uri=<account>.dkr.ecr.<region>.amazonaws.com/cv2kinesis:latest
    ```
 3. After deployment finishes, note the stream name and load balancer URL output by CDK.
 
