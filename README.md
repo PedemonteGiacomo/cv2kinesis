@@ -1,4 +1,8 @@
 ## Real-time Object Detection and Streaming with Python, OpenCV, AWS Kinesis, and YOLOv8
+**New Serverless Architecture**
+
+This repository now includes a containerized YOLOv8 service and an AWS CDK stack to deploy a fully managed demo on Fargate. Check the `stream_service/` folder for the container code and `cdk/` for the infrastructure definition.
+
 
 I've got the following idea in my mind. I want to detect objects with YoloV8 and OpenCV. Here a simple example:
 
@@ -164,3 +168,16 @@ def detect_id_in_results(results):
 ```
 
 And that's all. Real-time Object Detection with Kinesis stream. However, computer vision examples are often simple and quite straightforward. On the other hand, real-world computer vision projects tend to be more intricate, involving considerations such as cameras, lighting conditions, performance optimization, and accuracy. But remember, this is just an example.
+
+## Deploying the Serverless Demo
+
+Use the CDK project in `cdk/` to provision Kinesis and an ECS Fargate service that runs the container from `stream_service/`. Build and push the container image to ECR, then run:
+
+```bash
+cd stream_service && docker build -t myrepo/cv2kinesis:latest .
+# push image to ECR (not shown)
+cd ../cdk && cdk deploy
+```
+
+The stack outputs the Kinesis stream name and the URL where the processed video can be viewed. Destroy all resources with `cdk destroy`.
+
