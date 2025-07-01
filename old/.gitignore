@@ -1,0 +1,3 @@
+src/env/local/.env
+simple/.env
+*.pt

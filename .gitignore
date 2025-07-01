@@ -1,3 +1,6 @@
-src/env/local/.env
-simple/.env
-*.pt
+# General ignores
+__pycache__/
+*.pyc
+.env
+# Node
+node_modules/
