@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Pipeline Demo - Object Detection</title>
+    <script src="https://sdk.amazonaws.com/js/aws-sdk-2.1540.0.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: white;
+        }
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        video {
+            width: 100%;
+            max-width: 640px;
+            border: 2px solid #333;
+            border-radius: 8px;
+        }
+        .controls {
+            margin: 20px 0;
+        }
+        button {
+            background: #007acc;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover {
+            background: #005a9e;
+        }
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+        .status {
+            background: #333;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+        .detections {
+            background: #2a2a2a;
+            padding: 15px;
+            border-radius: 8px;
+            min-height: 200px;
+        }
+        .detection-item {
+            background: #007acc;
+            padding: 8px 12px;
+            margin: 5px 0;
+            border-radius: 4px;
+            display: flex;
+            justify-content: space-between;
+        }
+        .config {
+            background: #333;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        input {
+            background: #555;
+            color: white;
+            border: 1px solid #777;
+            padding: 8px;
+            border-radius: 4px;
+            width: 200px;
+        }
+        .error {
+            background: #cc0000;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎥 Video Pipeline Demo - Real-time Object Detection</h1>
+    <p>Architettura: <strong>Frontend → Kinesis → ECS Fargate (YOLOv8) → S3 + SQS → Consumer</strong></p>
+    
+    <!-- Configurazione AWS -->
+    <div class="config">
+        <h3>🔧 Configurazione AWS</h3>
+        <div>
+            <label>Access Key ID:</label><br>
+            <input type="text" id="accessKeyId" placeholder="AKIA...">
+        </div>
+        <div style="margin-top: 10px;">
+            <label>Secret Access Key:</label><br>
+            <input type="password" id="secretAccessKey" placeholder="...">
+        </div>
+        <div style="margin-top: 10px;">
+            <button onclick="updateAWSConfig()">Update Config</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Sezione Video -->
+        <div>
+            <h3>📹 Video Input</h3>
+            <video id="videoElement" autoplay muted playsinline></video>
+            
+            <div class="controls">
+                <button id="startBtn" onclick="startProcessing()">▶️ Start Processing</button>
+                <button id="stopBtn" onclick="stopProcessing()" disabled>⏹️ Stop Processing</button>
+            </div>
+            
+            <div class="status" id="status">
+                Status: Ready to start
+            </div>
+        </div>
+
+        <!-- Sezione Risultati -->
+        <div>
+            <h3>🎯 Detection Results</h3>
+            <div class="detections" id="detections">
+                <p>Waiting for detections...</p>
+            </div>
+            
+            <div class="status">
+                <strong>Stats:</strong><br>
+                Frames sent: <span id="frameCount">0</span><br>
+                Results received: <span id="resultCount">0</span><br>
+                Last detection: <span id="lastDetection">None</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configurazione
+        const CONFIG = {
+            KINESIS_STREAM_NAME: 'cv2kinesis',
+            SQS_QUEUE_URL: 'https://sqs.eu-central-1.amazonaws.com/544547773663/processing-results',
+            AWS_REGION: 'eu-central-1'
+        };
+
+        let kinesis = null;
+        let sqs = null;
+        let isProcessing = false;
+        let frameCount = 0;
+        let resultCount = 0;
+        let video = null;
+        let canvas = null;
+        let ctx = null;
+        let processInterval = null;
+        let pollInterval = null;
+
+        // Inizializzazione
+        window.onload = function() {
+            video = document.getElementById('videoElement');
+            canvas = document.createElement('canvas');
+            ctx = canvas.getContext('2d');
+            
+            // Setup webcam
+            navigator.mediaDevices.getUserMedia({ 
+                video: { width: 640, height: 480, facingMode: 'user' } 
+            })
+            .then(stream => {
+                video.srcObject = stream;
+                updateStatus('Webcam ready');
+            })
+            .catch(err => {
+                showError('Error accessing webcam: ' + err.message);
+            });
+        };
+
+        function updateAWSConfig() {
+            const accessKeyId = document.getElementById('accessKeyId').value;
+            const secretAccessKey = document.getElementById('secretAccessKey').value;
+            
+            if (!accessKeyId || !secretAccessKey) {
+                showError('Please provide both Access Key ID and Secret Access Key');
+                return;
+            }
+
+            try {
+                AWS.config.update({
+                    accessKeyId: accessKeyId,
+                    secretAccessKey: secretAccessKey,
+                    region: CONFIG.AWS_REGION
+                });
+
+                kinesis = new AWS.Kinesis();
+                sqs = new AWS.SQS();
+
+                updateStatus('AWS credentials configured successfully');
+                document.getElementById('startBtn').disabled = false;
+            } catch (error) {
+                showError('Error configuring AWS: ' + error.message);
+            }
+        }
+
+        function startProcessing() {
+            if (!kinesis || !sqs) {
+                showError('Please configure AWS credentials first');
+                return;
+            }
+
+            isProcessing = true;
+            document.getElementById('startBtn').disabled = true;
+            document.getElementById('stopBtn').disabled = false;
+            
+            updateStatus('Processing started');
+            
+            // Invio frame ogni 200ms (5 FPS)
+            processInterval = setInterval(sendFrame, 200);
+            
+            // Polling risultati ogni secondo
+            pollInterval = setInterval(receiveResults, 1000);
+        }
+
+        function stopProcessing() {
+            isProcessing = false;
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('stopBtn').disabled = true;
+            
+            if (processInterval) clearInterval(processInterval);
+            if (pollInterval) clearInterval(pollInterval);
+            
+            updateStatus('Processing stopped');
+        }
+
+        function sendFrame() {
+            if (!isProcessing || !video.videoWidth) return;
+
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            ctx.drawImage(video, 0, 0);
+
+            canvas.toBlob(async (blob) => {
+                try {
+                    const arrayBuffer = await blob.arrayBuffer();
+                    const data = new Uint8Array(arrayBuffer);
+
+                    const params = {
+                        StreamName: CONFIG.KINESIS_STREAM_NAME,
+                        Data: data,
+                        PartitionKey: 'video-processing-' + Date.now()
+                    };
+
+                    await kinesis.putRecord(params).promise();
+                    frameCount++;
+                    document.getElementById('frameCount').textContent = frameCount;
+                    
+                } catch (error) {
+                    console.error('Error sending frame:', error);
+                    showError('Error sending frame: ' + error.message);
+                }
+            }, 'image/jpeg', 0.8);
+        }
+
+        async function receiveResults() {
+            if (!isProcessing) return;
+
+            try {
+                const params = {
+                    QueueUrl: CONFIG.SQS_QUEUE_URL,
+                    MaxNumberOfMessages: 10,
+                    WaitTimeSeconds: 1
+                };
+
+                const data = await sqs.receiveMessage(params).promise();
+                
+                if (data.Messages && data.Messages.length > 0) {
+                    for (const message of data.Messages) {
+                        try {
+                            const result = JSON.parse(message.Body);
+                            displayDetection(result);
+                            resultCount++;
+                            document.getElementById('resultCount').textContent = resultCount;
+
+                            // Cancella messaggio dalla coda
+                            await sqs.deleteMessage({
+                                QueueUrl: CONFIG.SQS_QUEUE_URL,
+                                ReceiptHandle: message.ReceiptHandle
+                            }).promise();
+
+                        } catch (parseError) {
+                            console.error('Error parsing message:', parseError);
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Error receiving results:', error);
+            }
+        }
+
+        function displayDetection(result) {
+            const detectionsDiv = document.getElementById('detections');
+            const timestamp = new Date(result.timestamp).toLocaleTimeString();
+            
+            let html = `<div class="detection-item" style="background: #333; margin-bottom: 10px;">
+                <strong>Frame ${timestamp}</strong>
+            </div>`;
+
+            if (result.detections && result.detections.length > 0) {
+                result.detections.forEach(detection => {
+                    const confidence = Math.round(detection.confidence * 100);
+                    html += `<div class="detection-item">
+                        <span>${detection.class}</span>
+                        <span>${confidence}%</span>
+                    </div>`;
+                });
+                
+                document.getElementById('lastDetection').textContent = 
+                    result.detections[0].class + ' (' + Math.round(result.detections[0].confidence * 100) + '%)';
+            } else {
+                html += `<div class="detection-item" style="background: #666;">
+                    <span>No objects detected</span>
+                </div>`;
+            }
+
+            // Mantieni solo le ultime 5 detection
+            detectionsDiv.innerHTML = html;
+        }
+
+        function updateStatus(message) {
+            document.getElementById('status').innerHTML = `Status: ${message}`;
+        }
+
+        function showError(message) {
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error';
+            errorDiv.textContent = message;
+            document.body.insertBefore(errorDiv, document.body.firstChild);
+            
+            setTimeout(() => {
+                if (errorDiv.parentNode) {
+                    errorDiv.parentNode.removeChild(errorDiv);
+                }
+            }, 5000);
+        }
+    </script>
+</body>
+</html>
