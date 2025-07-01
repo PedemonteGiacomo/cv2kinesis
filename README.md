@@ -189,5 +189,31 @@ docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/cv2kinesis:latest
 cd ../cdk && cdk deploy -c image_uri=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/cv2kinesis:latest
 ```
 
-The stack outputs the Kinesis stream name and the URL where the processed video can be viewed. Destroy all resources with `cdk destroy`.
+or for Windows:
 
+```powershell
+# Build the Docker image
+Set-Location stream_service
+docker build -t cv2kinesis:latest .
+
+# Create or locate an ECR repository
+try { aws ecr create-repository --repository-name cv2kinesis } catch { Write-Host "Repository may already exist" }
+
+# Get AWS account ID and set region
+$AWS_ACCOUNT_ID = aws sts get-caller-identity --query Account --output text
+$AWS_REGION = "eu-central-1"  # adjust if needed
+
+# Login to ECR
+$loginPassword = aws ecr get-login-password --region $AWS_REGION
+$loginPassword | docker login --username AWS --password-stdin "$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com"
+
+# Tag and push the image
+docker tag cv2kinesis:latest "$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/cv2kinesis:latest"
+docker push "$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/cv2kinesis:latest"
+
+# Deploy using the pushed image
+Set-Location ../cdk
+cdk deploy -c "image_uri=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/cv2kinesis:latest"
+```
+
+The stack outputs the Kinesis stream name and the URL where the processed video can be viewed. Destroy all resources with `cdk destroy`.
