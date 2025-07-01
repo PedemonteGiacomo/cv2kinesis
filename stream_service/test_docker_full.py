@@ -19,13 +19,14 @@ def build_container():
     print("📦 This may take a few minutes for the first build...")
     
     try:
-        # Avvia il processo di build
+        # Avvia il processo di build con Windows-safe encoding
         process = subprocess.Popen(
             ["docker", "build", "-t", "cv2kinesis:test", "."],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
-            universal_newlines=True
+            encoding='cp1252',  # Windows default encoding
+            errors='replace'  # Replace invalid characters instead of failing
         )
         
         # Mostra progress in tempo reale
@@ -33,29 +34,76 @@ def build_container():
         for line in process.stdout:
             line = line.strip()
             if line:
-                if line.startswith("Step "):
-                    step_count += 1
-                    print(f"   📋 {line}")
-                elif "FROM" in line or "RUN" in line or "COPY" in line:
-                    print(f"   ⚙️ {line[:60]}{'...' if len(line) > 60 else ''}")
+                # Skip Docker's progress bars and control characters
+                if '\x1b[' in line or '\r' in line:
+                    continue
+                    
+                if line.startswith("#"):
+                    if "FROM" in line or "RUN" in line or "COPY" in line:
+                        step_count += 1
+                        # Clean up the line for display
+                        clean_line = line.replace('#', '').strip()
+                        if len(clean_line) > 60:
+                            clean_line = clean_line[:60] + "..."
+                        print(f"   📋 Step {step_count}: {clean_line}")
                 elif "Successfully built" in line:
                     print(f"   ✅ {line}")
-                elif "ERROR" in line.upper() or "FAILED" in line.upper():
+                elif any(word in line.lower() for word in ["error", "failed", "cannot"]):
                     print(f"   ❌ {line}")
+                elif "FINISHED" in line or "-->" in line:
+                    print(f"   ⚙️ {line[:50]}{'...' if len(line) > 50 else ''}")
         
         # Aspetta che il processo finisca
         return_code = process.wait()
         
         if return_code == 0:
             print("✅ Container built successfully")
-            print(f"📊 Total build steps completed: {step_count}")
+            print(f"📊 Build completed with {step_count} steps")
             return True
         else:
             print(f"❌ Container build failed with exit code: {return_code}")
             return False
             
+    except UnicodeDecodeError as e:
+        print(f"❌ Encoding error during build: {e}")
+        print("🔧 Trying alternative build method...")
+        return build_container_fallback()
     except Exception as e:
         print(f"❌ Error building container: {e}")
+        return False
+
+def build_container_fallback():
+    """Fallback build method without real-time output"""
+    print("🔄 Using fallback build method...")
+    
+    try:
+        result = subprocess.run(
+            ["docker", "build", "-t", "cv2kinesis:test", "."],
+            capture_output=True, 
+            text=True,
+            encoding='cp1252',  # Windows encoding
+            errors='replace',
+            timeout=300  # 5 minute timeout
+        )
+        
+        if result.returncode == 0:
+            print("✅ Container built successfully (fallback method)")
+            return True
+        else:
+            print(f"❌ Container build failed:")
+            # Show only last part of error to avoid encoding issues
+            if result.stderr:
+                error_lines = result.stderr.split('\n')[-10:]
+                for line in error_lines:
+                    if line.strip():
+                        print(f"   ❌ {line}")
+            return False
+            
+    except subprocess.TimeoutExpired:
+        print("❌ Build timed out after 5 minutes")
+        return False
+    except Exception as e:
+        print(f"❌ Fallback build failed: {e}")
         return False
 
 def test_container_startup():
@@ -96,7 +144,8 @@ def test_container_startup():
             "-p", "8081:8080"  # Usa porta diversa per evitare conflitti
         ] + env_vars + ["cv2kinesis:test"]
         
-        result = subprocess.run(docker_cmd, capture_output=True, text=True)
+        result = subprocess.run(docker_cmd, capture_output=True, text=True, 
+                                encoding='cp1252', errors='replace')
         
         if result.returncode == 0:
             container_id = result.stdout.strip()
@@ -238,7 +287,8 @@ def get_container_logs(container_id):
         print("   🔄 Fetching recent container logs...")
         result = subprocess.run(
             ["docker", "logs", "--tail", "50", container_id],
-            capture_output=True, text=True
+            capture_output=True, text=True,
+            encoding='cp1252', errors='replace'
         )
         
         if result.stdout:
@@ -275,21 +325,24 @@ def stop_container(container_id):
         try:
             print(f"   🔄 Stopping container {container_id[:12]}...")
             result = subprocess.run(["docker", "stop", container_id], 
-                                  capture_output=True, text=True, timeout=10)
+                                  capture_output=True, text=True, timeout=10,
+                                  encoding='cp1252', errors='replace')
             if result.returncode == 0:
                 print("✅ Container stopped successfully")
             else:
                 print(f"⚠️ Container stop returned code: {result.returncode}")
         except subprocess.TimeoutExpired:
             print("⚠️ Container stop timed out - forcing removal")
-            subprocess.run(["docker", "kill", container_id], capture_output=True)
+            subprocess.run(["docker", "kill", container_id], capture_output=True,
+                         encoding='cp1252', errors='replace')
         except Exception as e:
             print(f"⚠️ Error stopping container: {e}")
     
     # Cleanup any leftover containers
     try:
         subprocess.run(["docker", "rm", "-f", "cv2kinesis-test"], 
-                      capture_output=True, text=True)
+                      capture_output=True, text=True,
+                      encoding='cp1252', errors='replace')
     except:
         pass
 
