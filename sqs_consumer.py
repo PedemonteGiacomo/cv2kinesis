@@ -2,6 +2,9 @@
 """
 Consumer AWS: Legge messaggi da SQS queue e può scaricare immagini da S3
 Simula il comportamento del frontend che riceverà i risultati del processing
+usato in DEPLOY_AND_TEST per testare il pipeline.
+Simula il comportamento del frontend che riceverà i risultati del processing.
+Mostra log dettagliati delle detection trovate.
 """
 import boto3
 import json

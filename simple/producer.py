@@ -1,6 +1,7 @@
 """
 Producer: Cattura video dalla webcam e lo invia a Kinesis Data Stream
 Mostra una finestra live con il video della webcam
+usato in DEPLOY_AND_TEST per testare il pipeline
 """
 import logging
 import cv2 as cv
