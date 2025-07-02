@@ -7,6 +7,8 @@ from aws_cdk import (
     aws_ecs as ecs,
     aws_ecs_patterns as ecs_patterns,
     aws_kinesis as kinesis,
+    aws_cloudwatch as cw,
+    aws_applicationautoscaling as appscaling,
     aws_ecr as ecr,
     aws_iam as iam,
     aws_s3 as s3,
@@ -17,110 +19,140 @@ from constructs import Construct
 
 
 class VideoPipelineStack(Stack):
+    """Webcam → Kinesis (EFO) → ECS YOLO → S3 + SQS – autoscaling & dashboard"""
+
     def __init__(self, scope: Construct, id: str, **kwargs) -> None:
         super().__init__(scope, id, **kwargs)
 
-        # S3 bucket for processed frames
+        # Get suffix from context for resource naming
+        suffix = self.node.try_get_context("suffix") or ""
+        print(f"🏷️ Using suffix: '{suffix}' for resource names")
+
+        # ------------------------------------------------------------------#
+        # 📦 STORAGE (S3 + SQS)
+        # ------------------------------------------------------------------#
         processed_frames_bucket = s3.Bucket(
             self,
             "ProcessedFramesBucket",
-            bucket_name=f"processedframes-{self.account}-{self.region}",
-            removal_policy=RemovalPolicy.DESTROY,  # For demo purposes
-            auto_delete_objects=True,  # For demo purposes
+            bucket_name=f"processedframes-{self.account}-{self.region}{suffix}",
+            removal_policy=RemovalPolicy.DESTROY,             # demo-only
+            auto_delete_objects=True,
+            encryption=s3.BucketEncryption.S3_MANAGED,
         )
 
-        # SQS queue for processing results
         processing_queue = sqs.Queue(
             self,
             "ProcessingResultsQueue",
-            queue_name="processing-results",
+            queue_name=f"processing-results{suffix}",
             visibility_timeout=Duration.seconds(300),
         )
 
-        # Kinesis stream for frames
+        # ------------------------------------------------------------------#
+        # 📡 KINESIS STREAM (ON_DEMAND + Enhanced Fan-Out)
+        # ------------------------------------------------------------------#
         stream = kinesis.Stream(
             self,
             "FrameStream",
-            stream_name="cv2kinesis",
+            stream_name=f"cv2kinesis{suffix}",
+            stream_mode=kinesis.StreamMode.ON_DEMAND,
+            encryption=kinesis.StreamEncryption.MANAGED,
+            removal_policy=RemovalPolicy.DESTROY,             # demo-only
         )
 
-        # Networking and ECS cluster
-        vpc = ec2.Vpc(self, "Vpc", max_azs=2)
+        efo_consumer = kinesis.CfnStreamConsumer(
+            self,
+            "ECSConsumer",
+            consumer_name=f"ecs-consumer{suffix}",
+            stream_arn=stream.stream_arn,
+        )
+
+        # ------------------------------------------------------------------#
+        # ☁️ NETWORK & ECS CLUSTER
+        # ------------------------------------------------------------------#
+        vpc     = ec2.Vpc(self, "Vpc", max_azs=2)
         cluster = ecs.Cluster(self, "Cluster", vpc=vpc)
 
         task = ecs.FargateTaskDefinition(
-            self,
-            "TaskDef",
-            cpu=1024,
-            memory_limit_mib=2048,
+            self, "TaskDef",
+            cpu=2048,
+            memory_limit_mib=4096,
         )
 
+        # Docker image (passa con -c image_uri=…  oppure var IMAGE_URI)
         image_uri = (
             self.node.try_get_context("image_uri")
             or os.environ.get("IMAGE_URI")
-            or "544547773663.dkr.ecr.eu-central-1.amazonaws.com/cv2kinesis:latest"
+            or "000000000000.dkr.ecr.eu-central-1.amazonaws.com/cv2kinesis:latest"
         )
-
-        # Handle ECR repository permissions properly
-        if ".dkr.ecr." in image_uri and ".amazonaws.com" in image_uri:
-            # Extract repository name from ECR URI
-            repo_name = image_uri.split("/")[-1].split(":")[0]
-            ecr_repo = ecr.Repository.from_repository_name(
-                self, "ECRRepository", repo_name
-            )
-            container_image = ecs.ContainerImage.from_ecr_repository(ecr_repo, "latest")
+        
+        print(f"🐳 Using Docker image: {image_uri}")
+        
+        if ".dkr.ecr." in image_uri:
+            # Parse repository name and tag correctly
+            image_parts = image_uri.split("/")[-1]  # cv2kinesis:test
+            if ":" in image_parts:
+                repo_name, tag = image_parts.split(":", 1)  # cv2kinesis, test
+            else:
+                repo_name = image_parts
+                tag = "latest"
+            
+            print(f"📦 ECR Repository: {repo_name}, Tag: {tag}")
+            ecr_repo = ecr.Repository.from_repository_name(self, "ECRRepo", repo_name)
+            container_image = ecs.ContainerImage.from_ecr_repository(ecr_repo, tag=tag)
         else:
             container_image = ecs.ContainerImage.from_registry(image_uri)
 
         container = task.add_container(
-            "DetectorContainer",
+            "Detector",
             image=container_image,
             logging=ecs.LogDrivers.aws_logs(stream_prefix="yolo"),
             environment={
-                "KINESIS_STREAM_NAME": stream.stream_name,
-                "S3_BUCKET_NAME": processed_frames_bucket.bucket_name,
-                "SQS_QUEUE_URL": processing_queue.queue_url,
-                "AWS_REGION": self.region,
-                "YOLO_MODEL": "yolov8n.pt",
-                "THRESHOLD": "0.5",
+                "AWS_REGION":                self.region,
+                "KINESIS_STREAM_ARN":        stream.stream_arn,
+                "KINESIS_CONSUMER_ARN":      efo_consumer.attr_consumer_arn,
+                "S3_BUCKET_NAME":            processed_frames_bucket.bucket_name,
+                "SQS_QUEUE_URL":             processing_queue.queue_url,
+                "YOLO_MODEL":                "yolov8n.pt",
+                "THRESHOLD":                 "0.8",
+                "POOL_SIZE":                 "4",      # worker processes
+                "MAX_QUEUE_LEN":             "100",
             },
         )
         container.add_port_mappings(ecs.PortMapping(container_port=8080))
 
-        # Add ECR permissions to BOTH execution role and task role
+        # ------------------------------------------------------------------#
+        # 🔐 PERMISSIONS
+        # ------------------------------------------------------------------#
+        # Pull from ECR
         ecr_policy = iam.PolicyStatement(
             actions=[
                 "ecr:GetAuthorizationToken",
-                "ecr:BatchCheckLayerAvailability", 
+                "ecr:BatchCheckLayerAvailability",
                 "ecr:GetDownloadUrlForLayer",
                 "ecr:BatchGetImage",
             ],
             resources=["*"],
         )
-        
-        # Execution role needs ECR permissions to pull images
         task.execution_role.add_to_policy(ecr_policy)
-        
-        # Task role also gets ECR permissions for extra safety
         task.task_role.add_to_policy(ecr_policy)
-        
-        # CloudWatch logs permissions for execution role
+
+        # Logs
         task.execution_role.add_to_policy(
             iam.PolicyStatement(
-                actions=[
-                    "logs:CreateLogGroup",
-                    "logs:CreateLogStream", 
-                    "logs:PutLogEvents",
-                ],
+                actions=["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"],
                 resources=["*"],
             )
         )
 
-        # Grant permissions
+        # Access to Kinesis / S3 / SQS
         stream.grant_read(task.task_role)
+        stream.grant(task.task_role, "kinesis:SubscribeToShard", "kinesis:DescribeStreamConsumer") # added for EFO
         processed_frames_bucket.grant_read_write(task.task_role)
         processing_queue.grant_send_messages(task.task_role)
 
+        # ------------------------------------------------------------------#
+        # 🐳 FARGATE SERVICE (+ ALB)
+        # ------------------------------------------------------------------#
         service = ecs_patterns.ApplicationLoadBalancedFargateService(
             self,
             "Service",
@@ -129,11 +161,8 @@ class VideoPipelineStack(Stack):
             desired_count=1,
             public_load_balancer=True,
             listener_port=80,
-            # Configure port mapping correctly
             platform_version=ecs.FargatePlatformVersion.LATEST,
         )
-        
-        # Configure the target group to use the correct port with optimized health check
         service.target_group.configure_health_check(
             path="/health",
             port="8080",
@@ -144,22 +173,69 @@ class VideoPipelineStack(Stack):
             unhealthy_threshold_count=5,
         )
 
-        self.url_output = service.load_balancer.load_balancer_dns_name
-        self.stream_name = stream.stream_name
-        
-        # Add outputs
-        CfnOutput(self, "LoadBalancerURL", 
-                  value=f"http://{service.load_balancer.load_balancer_dns_name}",
-                  description="URL to access the video stream")
-        CfnOutput(self, "KinesisStreamName", 
-                  value=stream.stream_name,
-                  description="Name of the Kinesis stream")
-        CfnOutput(self, "S3BucketName", 
-                  value=processed_frames_bucket.bucket_name,
-                  description="S3 bucket for processed frames")
-        CfnOutput(self, "SQSQueueURL", 
-                  value=processing_queue.queue_url,
-                  description="SQS queue URL for processing results")
-        CfnOutput(self, "SQSQueueName", 
-                  value=processing_queue.queue_name,
-                  description="SQS queue name for processing results")
+        # ------------------------------------------------------------------#
+        # ⚖️ AUTO-SCALING (CPU + lag Kinesis)
+        # ------------------------------------------------------------------#
+        scalable = service.service.auto_scale_task_count(min_capacity=1, max_capacity=50)
+
+        scalable.scale_on_cpu_utilization(
+            "Cpu80",
+            target_utilization_percent=80,
+            scale_in_cooldown=Duration.minutes(2),
+            scale_out_cooldown=Duration.seconds(30),
+        )
+
+        scalable.scale_on_metric(
+            "KinesisLag",
+            metric=cw.Metric(
+                namespace="Cv2Kinesis",
+                metric_name="MillisBehindLatest",
+                dimensions_map={"Service": "Detector"},
+                statistic="Average",
+                period=Duration.minutes(1)
+            ),
+            scaling_steps=[
+                {"lower": 5_000,  "change": +1},   # >5 s lag  → +1 task
+                {"lower": 30_000, "change": +3},   # >30 s     → +3
+            ],
+            adjustment_type=appscaling.AdjustmentType.CHANGE_IN_CAPACITY,
+        )
+
+        # ------------------------------------------------------------------#
+        # 📊 DASHBOARD
+        # ------------------------------------------------------------------#
+        dashboard = cw.Dashboard(
+            self, "VideoPipelineDashboard",
+            dashboard_name=f"VideoPipeline-{self.stack_name}"
+        )
+        dashboard.add_widgets(
+            cw.GraphWidget(
+                title="Kinesis IncomingBytes / IncomingRecords",
+                left=[stream.metric("IncomingBytes", statistic="Sum")],
+                right=[stream.metric("IncomingRecords", statistic="Sum")],
+                left_y_axis=cw.YAxisProps(label="Bytes"),
+                right_y_axis=cw.YAxisProps(label="Records"),
+            ),
+            cw.SingleValueWidget(
+                title="Lag stream (ms)",
+                metrics=[cw.Metric(
+                    namespace="Cv2Kinesis",
+                    metric_name="MillisBehindLatest",
+                    dimensions_map={"Service": "Detector"},
+                    statistic="Average",
+                    period=Duration.minutes(1)
+                )],
+            ),
+        )
+
+        # ------------------------------------------------------------------#
+        # 🌐 OUTPUTS
+        # ------------------------------------------------------------------#
+        CfnOutput(self, "LoadBalancerURL",
+                  value=f"http://{service.load_balancer.load_balancer_dns_name}")
+        CfnOutput(self, "KinesisStreamName", value=stream.stream_name)
+        CfnOutput(self, "KinesisConsumerARN", value=efo_consumer.attr_consumer_arn)
+        CfnOutput(self, "S3BucketName", value=processed_frames_bucket.bucket_name)
+        CfnOutput(self, "SQSQueueURL", value=processing_queue.queue_url)
+        CfnOutput(self, "DashboardURL",
+                  value=f"https://{self.region}.console.aws.amazon.com/cloudwatch/home?region={self.region}#dashboards:name={dashboard.dashboard_name}")

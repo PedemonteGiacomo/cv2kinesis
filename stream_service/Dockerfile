@@ -1,27 +1,34 @@
+# --------------------------------------------------------------------------- #
+#  Base image                                                                  #
+# --------------------------------------------------------------------------- #
 FROM python:3.9-slim
-
 WORKDIR /app
 
-# Install system dependencies for OpenCV
+# --------------------------------------------------------------------------- #
+#  System packages necessari per OpenCV + turbojpeg                            #
+# --------------------------------------------------------------------------- #
 RUN apt-get update && apt-get install -y \
-    libgl1-mesa-glx \
-    libglib2.0-0 \
-    libsm6 \
-    libxext6 \
-    libxrender-dev \
-    libgomp1 \
-    && rm -rf /var/lib/apt/lists/*
+        libgl1-mesa-glx libglib2.0-0 libsm6 libxext6 libxrender-dev \
+        libgomp1 libturbojpeg0 && \
+    rm -rf /var/lib/apt/lists/*
 
-# Copy requirements and install dependencies
+# --------------------------------------------------------------------------- #
+#  Python deps (requirements.txt deve contenere anche gunicorn)                #
+# --------------------------------------------------------------------------- #
 COPY requirements.txt .
-RUN pip install -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy YOLO model
+# --------------------------------------------------------------------------- #
+#  Codice e modelli                                                            #
+# --------------------------------------------------------------------------- #
 COPY yolov8n.pt .
+COPY app_efo.py   app.py
+COPY app_server.py .
 
-# Copy application code (use cloud version)
-COPY app_cloud.py app.py
-
+# --------------------------------------------------------------------------- #
+#  Network / entry-point                                                      #
+# --------------------------------------------------------------------------- #
 EXPOSE 8080
 
-CMD ["python", "app.py"]
+# Gunicorn pubblica l’app Flask definita in app_server.py
+CMD ["gunicorn", "-w", "1", "-b", "0.0.0.0:8080", "app_server:flask_app"]

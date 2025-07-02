@@ -14,7 +14,8 @@ def patched_load(f, map_location=None, pickle_module=None, weights_only=None, **
 torch.load = patched_load
 
 from aws_service import get_kinesis_client
-from settings import KINESIS_STREAM_NAME, CAM_URI, WIDTH
+from settings import CAM_URI, WIDTH
+import os
 
 # Configurazione logging
 logging.basicConfig(
@@ -26,10 +27,14 @@ logger = logging.getLogger(__name__)
 
 def run_producer():
     """Avvia il producer che cattura dalla webcam e invia a Kinesis"""
-    logger.info(f"🎥 Avvio Producer: webcam={CAM_URI} → Kinesis={KINESIS_STREAM_NAME}")
+    # Stream name da variabile d'ambiente o default
+    kinesis_stream_name = os.environ.get('KINESIS_STREAM_NAME', 'cv2kinesis')
+    
+    logger.info(f"🎥 Avvio Producer: webcam={CAM_URI} → Kinesis={kinesis_stream_name}")
     
     # Inizializza servizi
     kinesis = get_kinesis_client()
+    print(f"✅ Connesso a Kinesis Data Stream: {kinesis_stream_name}, regione={kinesis.meta.region_name}")
     cap = cv.VideoCapture(CAM_URI)
     
     if not cap.isOpened():
@@ -60,7 +65,7 @@ def run_producer():
             # Codifica e invia a Kinesis
             _, img_encoded = cv.imencode('.jpg', scaled_frame)
             kinesis.put_record(
-                StreamName=KINESIS_STREAM_NAME,
+                StreamName=kinesis_stream_name,
                 Data=img_encoded.tobytes(),
                 PartitionKey='1'
             )

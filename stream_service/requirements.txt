@@ -1,6 +1,8 @@
 boto3
 flask
+gunicorn          # NEW – WSGI server production-grade
 opencv-python-headless
 ultralytics
 numpy<2
+pillow            # NEW – ultralytics la importa internamente
 pika
