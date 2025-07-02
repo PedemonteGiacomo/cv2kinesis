@@ -1,0 +1,21 @@
+docker build -t cv2kinesis:local .
+
+# Chiude e rimuove il container se esiste già
+$cid = docker ps -aqf "name=cv2kinesis-local"
+if ($cid) { docker rm -f $cid }
+
+# Avvia quello nuovo
+docker run -d --rm `
+  -p 8080:8080 `
+  -e AWS_DEFAULT_REGION=eu-central-1 `
+  -e AWS_ACCESS_KEY_ID=dummy `
+  -e AWS_SECRET_ACCESS_KEY=dummy `
+  -e KINESIS_STREAM_ARN=dummy `
+  -e KINESIS_CONSUMER_ARN=dummy `
+  --name cv2kinesis-local `
+  cv2kinesis:local
+
+docker logs -f cv2kinesis-local
+
+Invoke-RestMethod http://localhost:8080/health
+Write-Host "health OK"

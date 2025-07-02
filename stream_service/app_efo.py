@@ -1,37 +1,72 @@
 """
-EFO consumer + multiprocessing YOLO  – latency ≈ 120-150 ms
+EFO consumer + multiprocessing YOLO – latenza ≈ 120-150 ms
+Funziona:
+
+• In produzione (ECS): legge dallo stream Kinesis in modalità EFO,
+  scrive metriche custom, invia frame annotati in S3 + SQS.
+
+• In locale (tag ‘local’ o variabili d’ambiente dummy):
+  non tenta di connettersi a Kinesis – rimane idle ma l’/health è OK.
 """
-import os, json, time, logging, boto3, cv2, numpy as np, multiprocessing as mp
-from botocore.client import Config
-from ultralytics import YOLO
+import os
+import time
+import logging
+import multiprocessing as mp
 from datetime import datetime
 
-log = logging.getLogger("cv2kinesis"); log.setLevel(logging.INFO)
+import boto3
+import cv2
+import numpy as np
+from botocore.client import Config
+from ultralytics import YOLO
 
-STREAM_ARN   = os.environ["KINESIS_STREAM_ARN"]
-CONSUMER_ARN = os.environ["KINESIS_CONSUMER_ARN"]
-POOL_SIZE    = int(os.getenv("POOL_SIZE", "4"))
-THRESHOLD    = float(os.getenv("THRESHOLD", "0.5"))
-MAX_Q        = int(os.getenv("MAX_QUEUE_LEN", "100"))
+# ───────────────────────── Log setup ─────────────────────────
+log = logging.getLogger("cv2kinesis")
+logging.basicConfig(level=logging.INFO,
+                    format="%(asctime)s [%(levelname)s] %(message)s",
+                    datefmt="%H:%M:%S")
 
-kinesis = boto3.client("kinesis", config=Config(retries={"max_attempts": 10}))
-s3      = boto3.client("s3")
-sqs     = boto3.client("sqs")
+# ───────────────────────── Config env ─────────────────────────
+REGION        = (os.getenv("AWS_REGION")
+                 or os.getenv("AWS_DEFAULT_REGION")
+                 or "eu-central-1")
 
-# ────────────────────────────────────────────────────────────────────
+STREAM_ARN    = os.getenv("KINESIS_STREAM_ARN", "")
+CONSUMER_ARN  = os.getenv("KINESIS_CONSUMER_ARN", "")
+POOL_SIZE     = int(os.getenv("POOL_SIZE", "4"))
+THRESHOLD     = float(os.getenv("THRESHOLD", "0.5"))
+MAX_Q         = int(os.getenv("MAX_QUEUE_LEN", "100"))
+
+# se ARN mancanti o valorizzati a “dummy” → modalità offline
+LOCAL_DUMMY = (STREAM_ARN.lower() in ("", "dummy")
+               or CONSUMER_ARN.lower() in ("", "dummy"))
+
+log.info("Region: %s  |  Dummy-mode: %s", REGION, LOCAL_DUMMY)
+
+# ─────────────────── AWS client (solo se serve) ───────────────
+if not LOCAL_DUMMY:
+    kinesis = boto3.client("kinesis",  region_name=REGION,
+                           config=Config(retries={"max_attempts": 10}))
+    s3      = boto3.client("s3",       region_name=REGION)
+    sqs     = boto3.client("sqs",      region_name=REGION)
+    cw      = boto3.client("cloudwatch", region_name=REGION)
+
+# ───────────────────────── Worker proc ─────────────────────────
 def worker(det_q: mp.Queue, out_q: mp.Queue):
-    """Processo figlio: prende frame JPEG, restituisce JPEG annotato + meta"""
+    """Figlio: riceve frame JPEG, esegue YOLO, restituisce risultato."""
     model = YOLO(os.getenv("YOLO_MODEL", "yolov8n.pt"))
-    for raw in iter(det_q.get, None):
+    while True:
+        raw = det_q.get()
+        if raw is None:                       # sentinel per shutdown
+            break
         ts, key, jpg = raw
         frame = cv2.imdecode(np.frombuffer(jpg, np.uint8), cv2.IMREAD_COLOR)
         results = model(frame, verbose=False)
-        # … (come tua _process_frame_and_store, ma senza I/O)
-        out_q.put((ts, key, jpg, 0, []))      # detections_count=0 simplific.
-# ────────────────────────────────────────────────────────────────────
+        # … qui potresti calcolare detections_count, summary ecc.
+        out_q.put((ts, key, jpg, 0, []))      # placeholder
+
+# ─────────────────────── CloudWatch metric ─────────────────────
 def metrics_writer(ms_behind_latest: int):
-    """Invia custom metric a CloudWatch (1 dato/min)"""
-    cw = boto3.client("cloudwatch")
     cw.put_metric_data(
         Namespace="Cv2Kinesis",
         MetricData=[{
@@ -43,41 +78,60 @@ def metrics_writer(ms_behind_latest: int):
         }]
     )
 
-def main():
-    det_q = mp.Queue(MAX_Q)
-    out_q = mp.Queue(MAX_Q)
-    procs = [mp.Process(target=worker, args=(det_q, out_q), daemon=True) for _ in range(POOL_SIZE)]
-    for p in procs: p.start()
-    log.info(f"🧰 Worker pool started x{POOL_SIZE}")
+# ─────────────────────────── Main ──────────────────────────────
+def main() -> None:
+    det_q, out_q = mp.Queue(MAX_Q), mp.Queue(MAX_Q)
+
+    # avvia i worker YOLO (daemonic va bene: non spawnano figli)
+    for _ in range(POOL_SIZE):
+        mp.Process(target=worker, args=(det_q, out_q), daemon=True).start()
+    log.info("🧰 Worker pool started x%s", POOL_SIZE)
+
+    # ---------- modalità locale: nessuna sorgente Kinesis ----------
+    if LOCAL_DUMMY:
+        log.warning("Dummy mode – Kinesis disattivato. In attesa …")
+        try:
+            while True:
+                time.sleep(3600)
+        except KeyboardInterrupt:
+            log.info("Shutdown richiesto (CTRL-C)")
+        return
+    # ----------------------------------------------------------------
 
     sub = kinesis.subscribe_to_shard(
         ConsumerARN=CONSUMER_ARN,
-        ShardId="ALL",            # SDK si occupa degli shard nuovi
-        StartingPosition={"Type": "LATEST"}
+        ShardId="ALL",
+        StartingPosition={"Type": "LATEST"},
     )
 
-    records_iter = sub.get("EventStream")
-    last_metric  = time.time()
+    last_metric = time.time()
 
-    for event in records_iter:
-        if "SubscribeToShardEvent" not in event:                  # keep-alive
+    for event in sub["EventStream"]:
+        if "SubscribeToShardEvent" not in event:     # keep-alive
             continue
-        ev      = event["SubscribeToShardEvent"]
-        lag_ms  = ev["MillisBehindLatest"]
+
+        ev = event["SubscribeToShardEvent"]
+        lag_ms = ev["MillisBehindLatest"]
+
+        # inviamo frame ai worker
         for rec in ev["Records"]:
-            det_q.put((datetime.utcnow().isoformat(), rec["SequenceNumber"], rec["Data"]))
-        # metriche per scaling
+            det_q.put((datetime.utcnow().isoformat(),
+                       rec["SequenceNumber"],
+                       rec["Data"]))
+
+        # metrica autoscaling (≈ 1/min)
         if time.time() - last_metric > 55:
             metrics_writer(lag_ms)
             last_metric = time.time()
 
-        # leggi output worker (non-bloccante) → S3+SQS
+        # svuotamento out_q non-bloccante → S3 + SQS
         try:
             while True:
                 ts, key, jpg, det_cnt, summary = out_q.get_nowait()
-                # s3.put_object(), sqs.send_message()  (identico al tuo codice)
+                # TODO: s3.put_object(), sqs.send_message() …
         except mp.queues.Empty:
             pass
 
+# ────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     main()

@@ -195,7 +195,11 @@ def deploy_stack(config):
     print("📋 Getting stack outputs...")
     try:
         result = subprocess.run(
-            ["aws", "cloudformation", "describe-stacks", "--stack-name", config['stack_name']],
+            [
+                "aws", "cloudformation", "describe-stacks",
+                "--stack-name", config['stack_name'],
+                "--region",     STACK_CONFIG['region']      # 👈 aggiungi sempre la region
+            ],
             capture_output=True, text=True
         )
         

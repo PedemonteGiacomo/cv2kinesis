@@ -1,16 +1,28 @@
 """
-WSGI wrapper: avvia il consumer EFO in un processo figlio
-e offre /health a 8080 per l'ALB
+WSGI wrapper:
+  • avvia il consumer EFO in un processo figlio (NON daemonic)
+  • espone /health per l’ALB
 """
 import multiprocessing as mp
+import signal, sys
 from flask import Flask
-from app import main as consumer_main   # <-- il tuo file consumer rimane "app.py"
+from app import main as consumer_main          # il tuo consumer resta in app.py
 
-# parte il consumer in background
-p = mp.Process(target=consumer_main, daemon=True)
-p.start()
+# usiamo lo spawn esplicito per compatibilità cross-OS
+ctx = mp.get_context("spawn")
+consumer_proc = ctx.Process(target=consumer_main)   # ← niente daemon
+consumer_proc.start()
 
-# piccola app HTTP solo per health-check
+# terminazione pulita quando Docker invia SIGTERM
+def _shutdown(*_):
+    if consumer_proc.is_alive():
+        consumer_proc.terminate()
+        consumer_proc.join()
+    sys.exit(0)
+
+for sig in (signal.SIGINT, signal.SIGTERM):
+    signal.signal(sig, _shutdown)
+
 flask_app = Flask(__name__)
 
 @flask_app.route("/health")
