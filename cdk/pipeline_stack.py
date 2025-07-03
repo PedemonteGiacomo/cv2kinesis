@@ -29,11 +29,13 @@ class VideoPipelineStack(Stack):
             auto_delete_objects=True,  # For demo purposes
         )
 
-        # SQS queue for processing results
+        # SQS queue for processing results - CAMBIO A FIFO
         processing_queue = sqs.Queue(
             self,
             "ProcessingResultsQueue",
-            queue_name="processing-results",
+            queue_name="processing-results.fifo",  # .fifo suffix obbligatorio
+            fifo=True,  # Abilita FIFO
+            content_based_deduplication=True,  # Deduplicazione automatica
             visibility_timeout=Duration.seconds(300),
         )
 

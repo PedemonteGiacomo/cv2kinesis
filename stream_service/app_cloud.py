@@ -210,13 +210,15 @@ def _process_frame_and_store(frame_bytes: bytes) -> bytes:
             "stream_name": KINESIS_STREAM_NAME
         }
         
-        # Send to SQS
+        # Send to SQS - FIFO VERSION
         if SQS_QUEUE_URL:
             sqs_client.send_message(
                 QueueUrl=SQS_QUEUE_URL,
-                MessageBody=json.dumps(message_data)
+                MessageBody=json.dumps(message_data),
+                MessageGroupId="video-stream",  # 🎯 REQUIRED per FIFO
+                MessageDeduplicationId=f"frame_{frame_counter}_{int(timestamp.timestamp())}"  # 🔧 Deduplicazione
             )
-            logger.info(f"📨 Message sent to SQS: {detection_count} detections")
+            logger.info(f"📨 Message sent to SQS FIFO: {detection_count} detections")
         
     except Exception as e:
         logger.error(f"❌ Error saving to S3/SQS: {e}")
