@@ -1,5 +1,5 @@
 src/env/local/.env
-simple/.env
+**/.env
 *.pt
 **/__pycache__
 **/cdk.out
