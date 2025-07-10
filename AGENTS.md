@@ -18,14 +18,5 @@ Both projects are written primarily in Python.
 ## Testing
 - Before committing, run `python -m pytest` from the repository root. The tests rely on optional heavy dependencies (Docker, OpenCV, ultralytics). If they fail due to missing packages or services, include the provided disclaimer in the PR.
 
-## Environment Setup
-A helper script `setup.sh` in the repository root installs the required tools. Run it once after cloning to create a virtual environment, install Python requirements for all components and install the AWS CDK CLI.
-
-```bash
-./setup.sh
-```
-
-This prepares the environment for CDK commands such as `cdk synth` or `cdk deploy`.
-
 ## Project Goal
 The main focus of this repository is building a complete Python CDK stack for a unified, hybrid infrastructure handling both images and videos in AWS region `eu-central-1`. Separate configurations for **test/dev** and **prod** should be maintained, and useful outputs should be provided for frontend integration.
