@@ -12,7 +12,7 @@ COPY c /app/c
 WORKDIR /app/c
 RUN make
 
-# Copy and install Python dependencies
+# Copy and install Python dependencies (AWS)
 WORKDIR /app
 COPY requirements_aws.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt

@@ -108,13 +108,12 @@ def main():
     print_step("DEPLOY & TEST PIPELINE CLOUD IBRIDA")
     print("🏗️ Architettura: Webcam → Kinesis → ECS → S3 → SQS → Consumer\n")
     print("Operazioni disponibili:")
-    print("  1. Build e deploy completo (Docker + CDK + test)")
+    print("  1. Build e deploy completo (Docker + CDK)")
     print("  2. Solo build e push immagini Docker")
     print("  3. Solo deploy CDK stack")
-    print("  4. Solo test producer (webcam → Kinesis)")
-    print("  5. Solo test consumer (richiede SQS URL)")
-    print("  6. Test completo (producer + consumer)")
-    choice = input("\nScegli operazione [1-6]: ")
+    print("  4. Test live VIDEO PIPELINE (producer webcam → Kinesis + stream web)")
+    print("  5. Test automatico IMAGE PIPELINE (carica immagine, verifica output)")
+    choice = input("\nScegli operazione [1-5]: ")
 
     if choice == "1":
         # Build e push di entrambe le immagini
@@ -133,34 +132,20 @@ def main():
             print(f"📨 SQS queue: {outputs.get('VideoProcessingQueueURL', 'N/A')}")
             if 'VideoStreamServiceURL' in outputs:
                 wait_for_service_healthy(outputs['VideoStreamServiceURL'])
-            print("\n🚀 Pronto per il test! Usa le opzioni 4 o 6 per testare la pipeline.")
+            print("\n🚀 Pronto per il test! Usa le opzioni 4 o 5 per testare la pipeline.")
     elif choice == "2":
         build_and_push_image(os.path.join("services", "stream_service"), "cv2kinesis:latest", "hybrid-pipeline-stream")
         build_and_push_image(os.path.join("services", "grayscale_service"), "grayscale:latest", "hybrid-pipeline-grayscale")
     elif choice == "3":
         deploy_stack()
     elif choice == "4":
-        run_producer()
+        print_step("TEST LIVE VIDEO PIPELINE")
+        print("Questo test avvia il producer (webcam → Kinesis) e apre il browser sul servizio stream per vedere i frame processati in tempo reale.")
+        subprocess.run([sys.executable, "test_video_live_pipeline.py"])
     elif choice == "5":
-        sqs_url = input("Inserisci SQS Queue URL: ")
-        if sqs_url:
-            run_consumer(sqs_url)
-        else:
-            print("❌ SQS URL richiesto")
-    elif choice == "6":
-        sqs_url = input("Inserisci SQS Queue URL (dagli outputs dello stack): ")
-        if not sqs_url:
-            print("❌ SQS URL richiesto")
-            return
-        print("\n🚀 Avvio test completo: prima consumer, poi producer")
-        import threading
-        consumer_thread = threading.Thread(target=run_consumer, args=(sqs_url,), daemon=True)
-        consumer_thread.start()
-        time.sleep(3)
-        try:
-            run_producer()
-        except KeyboardInterrupt:
-            print("\n⏹️ Test completato")
+        print_step("TEST AUTOMATICO IMAGE PIPELINE")
+        print("Questo test carica un'immagine su S3, attende l'elaborazione e verifica l'output su S3/SQS.")
+        subprocess.run([sys.executable, "test_image_pipeline.py"])
     else:
         print("❌ Scelta non valida")
 

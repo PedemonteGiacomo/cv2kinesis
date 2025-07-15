@@ -60,10 +60,8 @@ class HybridPipelineStack(Stack):
 
         # S3 Buckets for images
         image_input_name = f"images-input-{account}-{region}"
-        if bucket_exists(image_input_name):
-            image_input_bucket = s3.Bucket.from_bucket_name(self, "ImageInputBucket", image_input_name)
-        else:
-            image_input_bucket = s3.Bucket(self, "ImageInputBucket", bucket_name=image_input_name, removal_policy=RemovalPolicy.DESTROY, auto_delete_objects=True)
+        # Forza sempre la creazione come nuovo bucket per trigger S3 → Lambda
+        image_input_bucket = s3.Bucket(self, "ImageInputBucket", bucket_name=image_input_name, removal_policy=RemovalPolicy.DESTROY, auto_delete_objects=True)
 
         image_output_name = f"images-output-{account}-{region}"
         if bucket_exists(image_output_name):
@@ -102,11 +100,15 @@ class HybridPipelineStack(Stack):
 
         # SQS queue for video processing results (FIFO)
         video_processing_name = f"video-processing-results-{account}.fifo"
-        video_processing_arn = f"arn:aws:sqs:{region}:{account}:{video_processing_name}"
-        if sqs_exists(video_processing_name):
-            video_processing_queue = sqs.Queue.from_queue_arn(self, "VideoProcessingQueue", video_processing_arn)
-        else:
-            video_processing_queue = sqs.Queue(self, "VideoProcessingQueue", queue_name=video_processing_name, fifo=True, content_based_deduplication=True, visibility_timeout=Duration.seconds(300))
+        video_processing_queue = sqs.Queue(
+            self,
+            "VideoProcessingQueue",
+            queue_name=video_processing_name,
+            fifo=True,
+            content_based_deduplication=True,
+            visibility_timeout=Duration.seconds(300),
+            removal_policy=RemovalPolicy.RETAIN
+        )
 
         # Kinesis stream for video frames
         kinesis_stream_name = "cv2kinesis-hybrid"
