@@ -19,55 +19,119 @@ from aws_cdk import (
 )
 from constructs import Construct
 import os
+import boto3
+import botocore
 
 class HybridPipelineStack(Stack):
     def __init__(self, scope: Construct, id: str, **kwargs) -> None:
         super().__init__(scope, id, **kwargs)
+        account = self.account
+        region = self.region
+        session = boto3.session.Session(region_name=region)
+        s3_client = session.client('s3')
+        ecr_client = session.client('ecr')
+        sqs_client = session.client('sqs')
+        kinesis_client = session.client('kinesis')
+
+        def bucket_exists(name):
+            try:
+                s3_client.head_bucket(Bucket=name)
+                return True
+            except botocore.exceptions.ClientError:
+                return False
+        def ecr_exists(name):
+            try:
+                ecr_client.describe_repositories(repositoryNames=[name])
+                return True
+            except botocore.exceptions.ClientError:
+                return False
+        def sqs_exists(name):
+            try:
+                queues = sqs_client.list_queues(QueueNamePrefix=name).get('QueueUrls', [])
+                return any(name in q for q in queues)
+            except botocore.exceptions.ClientError:
+                return False
+        def kinesis_exists(name):
+            try:
+                streams = kinesis_client.list_streams()['StreamNames']
+                return name in streams
+            except botocore.exceptions.ClientError:
+                return False
+
+        # S3 Buckets for images
+        image_input_name = f"images-input-{account}-{region}"
+        if bucket_exists(image_input_name):
+            image_input_bucket = s3.Bucket.from_bucket_name(self, "ImageInputBucket", image_input_name)
+        else:
+            image_input_bucket = s3.Bucket(self, "ImageInputBucket", bucket_name=image_input_name, removal_policy=RemovalPolicy.DESTROY, auto_delete_objects=True)
+
+        image_output_name = f"images-output-{account}-{region}"
+        if bucket_exists(image_output_name):
+            image_output_bucket = s3.Bucket.from_bucket_name(self, "ImageOutputBucket", image_output_name)
+        else:
+            image_output_bucket = s3.Bucket(self, "ImageOutputBucket", bucket_name=image_output_name, removal_policy=RemovalPolicy.DESTROY, auto_delete_objects=True)
+
+        # SQS Queue for image processing results
+        image_processing_name = "ImageProcessingQueue"
+        image_processing_arn = f"arn:aws:sqs:{region}:{account}:{image_processing_name}"
+        if sqs_exists(image_processing_name):
+            image_processing_queue = sqs.Queue.from_queue_arn(self, "ImageProcessingQueue", image_processing_arn)
+        else:
+            image_processing_queue = sqs.Queue(self, "ImageProcessingQueue", visibility_timeout=Duration.seconds(300), retention_period=Duration.days(14))
+
+        # ECR Repository for the grayscale service
+        grayscale_ecr_name = "hybrid-pipeline-grayscale"
+        if ecr_exists(grayscale_ecr_name):
+            grayscale_ecr_repository = ecr.Repository.from_repository_name(self, "GrayscaleRepository", grayscale_ecr_name)
+        else:
+            grayscale_ecr_repository = ecr.Repository(self, "GrayscaleRepository", repository_name=grayscale_ecr_name, removal_policy=RemovalPolicy.DESTROY)
+
+        # S3 bucket for video frames and processed results
+        video_frames_name = f"video-frames-{account}-{region}"
+        if bucket_exists(video_frames_name):
+            video_frames_bucket = s3.Bucket.from_bucket_name(self, "VideoFramesBucket", video_frames_name)
+        else:
+            video_frames_bucket = s3.Bucket(self, "VideoFramesBucket", bucket_name=video_frames_name, removal_policy=RemovalPolicy.DESTROY, auto_delete_objects=True)
+
+        # S3 bucket for video input
+        video_input_name = f"videos-input-{account}-{region}"
+        if bucket_exists(video_input_name):
+            video_input_bucket = s3.Bucket.from_bucket_name(self, "VideoInputBucket", video_input_name)
+        else:
+            video_input_bucket = s3.Bucket(self, "VideoInputBucket", bucket_name=video_input_name, removal_policy=RemovalPolicy.DESTROY, auto_delete_objects=True)
+
+        # SQS queue for video processing results (FIFO)
+        video_processing_name = f"video-processing-results-{account}.fifo"
+        video_processing_arn = f"arn:aws:sqs:{region}:{account}:{video_processing_name}"
+        if sqs_exists(video_processing_name):
+            video_processing_queue = sqs.Queue.from_queue_arn(self, "VideoProcessingQueue", video_processing_arn)
+        else:
+            video_processing_queue = sqs.Queue(self, "VideoProcessingQueue", queue_name=video_processing_name, fifo=True, content_based_deduplication=True, visibility_timeout=Duration.seconds(300))
+
+        # Kinesis stream for video frames
+        kinesis_stream_name = "cv2kinesis-hybrid"
+        kinesis_stream_arn = f"arn:aws:kinesis:{region}:{account}:stream/{kinesis_stream_name}"
+        if kinesis_exists(kinesis_stream_name):
+            video_stream = kinesis.Stream.from_stream_arn(self, "VideoFrameStream", kinesis_stream_arn)
+        else:
+            video_stream = kinesis.Stream(self, "VideoFrameStream", stream_name=kinesis_stream_name)
+
+        # ECR Repository for the video stream service
+        stream_ecr_name = "hybrid-pipeline-stream"
+        if ecr_exists(stream_ecr_name):
+            stream_ecr_repository = ecr.Repository.from_repository_name(self, "StreamRepository", stream_ecr_name)
+        else:
+            stream_ecr_repository = ecr.Repository(self, "StreamRepository", repository_name=stream_ecr_name, removal_policy=RemovalPolicy.DESTROY)
 
         # ===========================================
         # SHARED INFRASTRUCTURE
         # ===========================================
-        
-        # VPC and ECS Cluster (shared by both pipelines)
         vpc = ec2.Vpc(self, "HybridVpc", max_azs=2)
         cluster = ecs.Cluster(self, "HybridCluster", vpc=vpc)
 
         # ===========================================
         # IMAGE PROCESSING PIPELINE
         # ===========================================
-        
-        # S3 Buckets for images
-        image_input_bucket = s3.Bucket(
-            self,
-            "ImageInputBucket",
-            bucket_name=f"images-input-{self.account}-{self.region}",
-            removal_policy=RemovalPolicy.DESTROY,
-            auto_delete_objects=True,
-        )
-
-        image_output_bucket = s3.Bucket(
-            self,
-            "ImageOutputBucket",
-            bucket_name=f"images-output-{self.account}-{self.region}",
-            removal_policy=RemovalPolicy.DESTROY,
-            auto_delete_objects=True,
-        )
-
-        # SQS Queue for image processing results
-        image_processing_queue = sqs.Queue(
-            self,
-            "ImageProcessingQueue",
-            visibility_timeout=Duration.seconds(300),
-            retention_period=Duration.days(14)
-        )
-
-        # ECR Repository for the grayscale service
-        grayscale_ecr_repository = ecr.Repository(
-            self,
-            "GrayscaleRepository",
-            repository_name="hybrid-pipeline-grayscale",
-            removal_policy=RemovalPolicy.DESTROY
-        )
 
         # ECS Task Definition for grayscale processing
         grayscale_task_definition = ecs.FargateTaskDefinition(
@@ -97,49 +161,6 @@ class HybridPipelineStack(Stack):
 
         # ===========================================
         
-        # S3 bucket for video frames and processed results
-        video_frames_bucket = s3.Bucket(
-            self,
-            "VideoFramesBucket",
-            bucket_name=f"video-frames-{self.account}-{self.region}",
-            removal_policy=RemovalPolicy.DESTROY,
-            auto_delete_objects=True,
-        )
-
-        # S3 bucket for video input
-        video_input_bucket = s3.Bucket(
-            self,
-            "VideoInputBucket", 
-            bucket_name=f"videos-input-{self.account}-{self.region}",
-            removal_policy=RemovalPolicy.DESTROY,
-            auto_delete_objects=True,
-        )
-
-        # SQS queue for video processing results (FIFO)
-        video_processing_queue = sqs.Queue(
-            self,
-            "VideoProcessingQueue",
-            queue_name=f"video-processing-results-{self.account}.fifo",
-            fifo=True,
-            content_based_deduplication=True,
-            visibility_timeout=Duration.seconds(300),
-        )
-
-        # Kinesis stream for video frames
-        video_stream = kinesis.Stream(
-            self,
-            "VideoFrameStream",
-            stream_name="cv2kinesis-hybrid",
-        )
-
-        # ECR Repository for the video stream service
-        stream_ecr_repository = ecr.Repository(
-            self,
-            "StreamRepository", 
-            repository_name="hybrid-pipeline-stream",
-            removal_policy=RemovalPolicy.DESTROY
-        )
-
         # ECS Task Definition for video stream processing
         stream_task_definition = ecs.FargateTaskDefinition(
             self,

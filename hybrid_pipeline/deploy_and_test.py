@@ -15,27 +15,26 @@ import os
 def print_step(msg):
     print(f"\n{'='*60}\n{msg}\n{'='*60}")
 
-def build_and_push_image():
-    """Build e push dell'immagine Docker su ECR"""
-    print_step("🔨 BUILD DOCKER IMAGE")
-    build_cmd = ["docker", "build", "-t", "cv2kinesis:latest", "."]
-    result = subprocess.run(build_cmd, cwd="stream_service")
+def build_and_push_image(service_dir, image_name, ecr_repo):
+    """Build e push dell'immagine Docker su ECR per un servizio"""
+    print_step(f"🔨 BUILD DOCKER IMAGE ({service_dir})")
+    build_cmd = ["docker", "build", "-t", image_name, "."]
+    result = subprocess.run(build_cmd, cwd=service_dir)
     if result.returncode != 0:
-        print("❌ Docker build failed")
+        print(f"❌ Docker build failed for {service_dir}")
         return False
-    print("✅ Docker image built successfully")
+    print(f"✅ Docker image built successfully for {service_dir}")
 
-    print_step("🚀 PUSH IMAGE TO ECR")
-    ecr_url = "544547773663.dkr.ecr.eu-central-1.amazonaws.com/cv2kinesis:latest"
-    login_cmd = "aws ecr get-login-password --region eu-central-1 | docker login --username AWS --password-stdin 544547773663.dkr.ecr.eu-central-1.amazonaws.com"
-    tag_cmd = f"docker tag cv2kinesis:latest {ecr_url}"
-    push_cmd = f"docker push {ecr_url}"
+    print_step(f"🚀 PUSH IMAGE TO ECR ({ecr_repo})")
+    login_cmd = f"aws ecr get-login-password --region eu-central-1 | docker login --username AWS --password-stdin 544547773663.dkr.ecr.eu-central-1.amazonaws.com"
+    tag_cmd = f"docker tag {image_name} 544547773663.dkr.ecr.eu-central-1.amazonaws.com/{ecr_repo}:latest"
+    push_cmd = f"docker push 544547773663.dkr.ecr.eu-central-1.amazonaws.com/{ecr_repo}:latest"
     for cmd in [login_cmd, tag_cmd, push_cmd]:
-        result = subprocess.run(cmd, shell=True, cwd="stream_service")
+        result = subprocess.run(cmd, shell=True, cwd=service_dir)
         if result.returncode != 0:
             print(f"❌ Command failed: {cmd}")
             return False
-    print("✅ Image pushed to ECR successfully")
+    print(f"✅ Image pushed to ECR successfully for {ecr_repo}")
     return True
 
 def deploy_stack():
@@ -73,7 +72,7 @@ def run_producer():
     print_step("🎥 STARTING PRODUCER (Webcam → Kinesis)")
     print("📹 Assicurati che la webcam sia collegata!")
     try:
-        subprocess.run([sys.executable, "producer.py"], cwd="simple")
+        subprocess.run([sys.executable, "producer.py"], cwd=os.path.join("..", "video-processing", "producer_and_consumer_examples"))
     except KeyboardInterrupt:
         print("\n⏹️ Producer stopped")
 
@@ -82,7 +81,7 @@ def run_consumer(sqs_queue_url):
     print_step("📨 STARTING SQS CONSUMER")
     print(f"📡 Queue: {sqs_queue_url}")
     try:
-        subprocess.run([sys.executable, "sqs_consumer.py", sqs_queue_url])
+        subprocess.run([sys.executable, "sqs_consumer.py", sqs_queue_url], cwd=os.path.join("..", "video-processing", "producer_and_consumer_examples"))
     except KeyboardInterrupt:
         print("\n⏹️ Consumer stopped")
 
@@ -110,7 +109,7 @@ def main():
     print("🏗️ Architettura: Webcam → Kinesis → ECS → S3 → SQS → Consumer\n")
     print("Operazioni disponibili:")
     print("  1. Build e deploy completo (Docker + CDK + test)")
-    print("  2. Solo build e push immagine Docker")
+    print("  2. Solo build e push immagini Docker")
     print("  3. Solo deploy CDK stack")
     print("  4. Solo test producer (webcam → Kinesis)")
     print("  5. Solo test consumer (richiede SQS URL)")
@@ -118,7 +117,10 @@ def main():
     choice = input("\nScegli operazione [1-6]: ")
 
     if choice == "1":
-        if not build_and_push_image():
+        # Build e push di entrambe le immagini
+        ok1 = build_and_push_image(os.path.join("services", "stream_service"), "cv2kinesis:latest", "hybrid-pipeline-stream")
+        ok2 = build_and_push_image(os.path.join("services", "grayscale_service"), "grayscale:latest", "hybrid-pipeline-grayscale")
+        if not (ok1 and ok2):
             return
         success, outputs = deploy_stack()
         if not success:
@@ -133,7 +135,8 @@ def main():
                 wait_for_service_healthy(outputs['VideoStreamServiceURL'])
             print("\n🚀 Pronto per il test! Usa le opzioni 4 o 6 per testare la pipeline.")
     elif choice == "2":
-        build_and_push_image()
+        build_and_push_image(os.path.join("services", "stream_service"), "cv2kinesis:latest", "hybrid-pipeline-stream")
+        build_and_push_image(os.path.join("services", "grayscale_service"), "grayscale:latest", "hybrid-pipeline-grayscale")
     elif choice == "3":
         deploy_stack()
     elif choice == "4":
