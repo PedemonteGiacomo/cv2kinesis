@@ -1,59 +1,92 @@
-# Hybrid Image & Video Pipeline
 
-This folder contains a minimal AWS CDK stack that combines the existing video-processing path (YOLOv8 on ECS) with a simple image-processing workflow based on S3 and Lambda.
+# Hybrid Pipeline AWS - Image & Video Processing
 
-The stack creates:
+## Obiettivo
+Pipeline ibrida per processare **immagini** e **video** in modo completamente event-driven e serverless su AWS, sfruttando servizi gestiti per orchestrazione, scalabilità e monitoraggio.
 
-- A Kinesis stream, ECS Fargate service and SQS queue for real-time video frame processing.
-- Two S3 buckets and a Lambda function that converts uploaded images to grayscale.
-- Convenient CloudFormation outputs so other teams or a frontend can easily integrate with the resources.
+## Architettura Completa
 
-## Prerequisites
+### 1. Image Processing Pipeline
+**Flusso End-to-End:**
+1. **Upload**: Un file `.jpg` o `.png` viene caricato su S3 (`ImageInputBucket`).
+2. **Trigger**: L'evento S3 attiva la Lambda `ImageS3DispatcherLambda`.
+3. **Dispatcher Lambda**: (`lambda/dispatcher/dispatcher.py`) riceve l'evento e avvia la State Machine Step Functions (`ImageProcessingStateMachine`).
+4. **Step Functions**: Orchestrazione del workflow, che esegue un task ECS Fargate (`GrayscaleTaskDefinition`).
+5. **Grayscale Service**: Il container custom (`services/grayscale_service/app_aws.py`) riceve i parametri (bucket/key), processa l'immagine in C/OpenMP, salva il risultato su S3 (`ImageOutputBucket`) e invia metriche su SQS (`ImageProcessingQueue`).
+6. **Output**: Immagine processata su S3, messaggio su SQS.
 
-- An AWS account with credentials configured (`aws configure`).
-- Node.js with the AWS CDK CLI installed:
-  ```bash
-  npm install -g aws-cdk
-  ```
-- Python 3.9 or later for the Lambda dependencies.
+**Componenti:**
+- S3: `ImageInputBucket`, `ImageOutputBucket`
+- Lambda: `ImageS3DispatcherLambda` (trigger S3)
+- Step Functions: `ImageProcessingStateMachine` (workflow)
+- ECS Fargate: `GrayscaleTaskDefinition` (container da `services/grayscale_service`)
+- SQS: `ImageProcessingQueue` (output/metriche)
 
-## Deployment
+### 2. Video Processing Pipeline
+**Flusso End-to-End:**
+1. **Upload**: Un video viene caricato su S3 (`VideoInputBucket`).
+2. **Frame Extraction**: I frame vengono inviati su Kinesis Data Streams (`VideoFrameStream`).
+3. **ECS Fargate Service**: Il servizio ECS (`StreamTaskDefinition` + `ApplicationLoadBalancedFargateService`) esegue il container YOLO (`services/stream_service/app_cloud.py`).
+4. **YOLO Service**: Il container consuma i frame da Kinesis, applica YOLO (object detection), salva i risultati su S3 (`VideoFramesBucket`) e invia i risultati su SQS FIFO (`VideoProcessingQueue`).
+5. **Accesso**: Il servizio è esposto tramite Application Load Balancer (`VideoStreamServiceURL`).
 
-1. (Optional) install the Lambda requirements in a virtual environment if you want to test the handler locally:
-   ```bash
-   python -m venv .venv
-   source .venv/bin/activate
-   pip install -r lambda/grayscale/requirements.txt
-   ```
+**Componenti:**
+- S3: `VideoInputBucket`, `VideoFramesBucket`
+- Kinesis: `VideoFrameStream` (streaming frame)
+- ECS Fargate: `StreamTaskDefinition` (container da `services/stream_service`)
+- SQS: `VideoProcessingQueue` (risultati, FIFO)
+- ECR: `StreamRepository` (immagine container YOLO)
+- Load Balancer: `VideoStreamServiceURL` (accesso HTTP)
 
-2. Deploy the stack (defaults to the `dev` stage):
-   ```bash
-   cdk deploy
-   ```
-   For a production deployment run:
-   ```bash
-   cdk deploy -c stage=prod
-   ```
+## Mapping tra CDK e Servizi Custom
 
-The command prints outputs such as the load balancer URL, Kinesis stream name and bucket names. These values are required by the frontend or additional services.
+- **Grayscale Service**:
+  - Definito in `services/grayscale_service/app_aws.py` (per AWS) e `app.py` (per locale/minio).
+  - Deployato come container su ECS Fargate tramite `GrayscaleTaskDefinition`.
+  - Orchestrato da Step Functions (`ImageProcessingStateMachine`).
 
-To remove the stack use the matching destroy command:
-```bash
-cdk destroy                # dev stage
-cdk destroy -c stage=prod  # prod stage
-```
+- **YOLO Stream Service**:
+  - Definito in `services/stream_service/app_cloud.py` (per AWS) e `app.py` (per locale).
+  - Deployato come container su ECS Fargate tramite `StreamTaskDefinition`.
+  - Consuma frame da Kinesis, salva risultati su S3/SQS, esposto via Load Balancer.
 
-## Testing
+- **Dispatcher Lambda**:
+  - Codice in `lambda/dispatcher/dispatcher.py`.
+  - Trigger S3, avvia Step Functions.
 
-From the repository root you can run the project tests:
-```bash
-python -m pytest
-```
-The tests rely on optional packages like `requests` and `cv2`. If they are not installed or Docker is unavailable, test collection will fail.
+## Dettagli Tecnici
 
-## Workflow Summary
+- **Event-driven**: Ogni step è attivato da un evento (upload, stream, messaggio).
+- **Serverless**: Nessuna gestione server, tutto gestito da AWS.
+- **Scalabilità**: ECS Fargate e Kinesis scalano automaticamente.
+- **Estensibilità**: Facile aggiungere nuovi step/servizi.
+- **Monitoraggio**: Step Functions, CloudWatch, SQS per tracing/debug.
 
-1. Send video frames to the listed Kinesis stream. YOLOv8 on ECS processes each frame and saves the result in the processed frames bucket. Detection results are published to the SQS queue.
-2. Upload still images to the `raw-images` bucket (or mount it via AWS Storage Gateway). The Lambda triggered by S3 events saves a grayscale version in the `processed-images` bucket under `processed/`.
+## Output e Risorse Principali
 
-Refer to `hybrid_pipeline_stack.py` for full implementation details.
+- S3 bucket immagini input/output
+- S3 bucket video input/frames
+- SQS code per risultati
+- Kinesis stream per frame video
+- ECR repository per container
+- URL servizio video via Load Balancer
+- ARN State Machine Step Functions
+
+## Come Deployare e Testare
+
+1. **Synth**: `cdk synth` per validare la definizione.
+2. **Deploy**: `cdk deploy` per creare lo stack.
+3. **Test**:
+   - Upload immagini su S3 → verifica output su S3/SQS
+   - Upload video → verifica stream frame, output YOLO su S3/SQS
+   - Accesso HTTP al servizio video
+
+## Stato Attuale
+
+- La pipeline è definita e pronta per deploy.
+- Tutti i servizi custom sono integrati e orchestrati tramite CDK.
+- La struttura è modulare e pronta per estensioni future.
+
+---
+
+**Questa README descrive in modo completo l'architettura, il flusso e l'integrazione tra CDK e servizi custom.**
