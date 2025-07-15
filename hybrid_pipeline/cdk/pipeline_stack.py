@@ -157,6 +157,24 @@ class HybridPipelineStack(Stack):
         image_input_bucket.grant_read(grayscale_task_definition.task_role)
         image_output_bucket.grant_write(grayscale_task_definition.task_role)
         image_processing_queue.grant_send_messages(grayscale_task_definition.task_role)
+        # Policy IAM esplicita per S3 (PutObject, GetObject, ListBucket) e SQS
+        grayscale_task_definition.task_role.add_to_policy(iam.PolicyStatement(
+            actions=[
+                "s3:PutObject",
+                "s3:GetObject",
+                "s3:ListBucket"
+            ],
+            resources=[
+                image_output_bucket.bucket_arn,
+                f"{image_output_bucket.bucket_arn}/*",
+                image_input_bucket.bucket_arn,
+                f"{image_input_bucket.bucket_arn}/*"
+            ]
+        ))
+        grayscale_task_definition.task_role.add_to_policy(iam.PolicyStatement(
+            actions=["sqs:SendMessage", "sqs:GetQueueAttributes", "sqs:ReceiveMessage"],
+            resources=[image_processing_queue.queue_arn]
+        ))
 
         # ===========================================
         

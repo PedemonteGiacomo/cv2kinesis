@@ -126,17 +126,35 @@ def main():
     print(f"Input bucket: {INPUT_BUCKET}")
     print(f"Output bucket: {OUTPUT_BUCKET}")
     print(f"Queue URL: {QUEUE_URL}")
-    # Modalità event-driven: processa solo input diretto (file o stdin)
-    if len(sys.argv) > 1:
-        with open(sys.argv[1], 'r') as f:
-            message_body = json.load(f)
-    else:
-        try:
-            message_body = json.load(sys.stdin)
-        except Exception:
-            print("No valid JSON input provided. Exiting.")
-            return
-    process_message(message_body)
+    # Modalità event-driven: processa solo input diretto (file, stdin, o env vars)
+    try:
+        if len(sys.argv) > 1:
+            with open(sys.argv[1], 'r') as f:
+                message_body = json.load(f)
+        else:
+            try:
+                message_body = json.load(sys.stdin)
+            except Exception:
+                # Fallback: costruisci message_body dalle env vars
+                image_key = os.environ.get('IMAGE_KEY')
+                bucket = os.environ.get('SOURCE_BUCKET', INPUT_BUCKET)
+                threads = [int(t) for t in os.environ.get('THREADS', '1').split(',') if t]
+                passes = os.environ.get('PASSES')
+                repeats = int(os.environ.get('REPEAT', '1'))
+                if image_key:
+                    message_body = {
+                        'image_key': image_key,
+                        'bucket': bucket,
+                        'threads': threads,
+                        'passes': passes,
+                        'repeat': repeats
+                    }
+                else:
+                    print("No valid JSON input or env vars provided. Exiting.")
+                    return
+        process_message(message_body)
+    except Exception as e:
+        print(f"Error: {e}")
 
 if __name__ == "__main__":
     main()
