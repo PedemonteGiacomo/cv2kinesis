@@ -64,10 +64,7 @@ class HybridPipelineStack(Stack):
         image_input_bucket = s3.Bucket(self, "ImageInputBucket", bucket_name=image_input_name, removal_policy=RemovalPolicy.DESTROY, auto_delete_objects=True)
 
         image_output_name = f"images-output-{account}-{region}"
-        if bucket_exists(image_output_name):
-            image_output_bucket = s3.Bucket.from_bucket_name(self, "ImageOutputBucket", image_output_name)
-        else:
-            image_output_bucket = s3.Bucket(self, "ImageOutputBucket", bucket_name=image_output_name, removal_policy=RemovalPolicy.DESTROY, auto_delete_objects=True)
+        image_output_bucket = s3.Bucket(self, "ImageOutputBucket", bucket_name=image_output_name, removal_policy=RemovalPolicy.DESTROY, auto_delete_objects=True)
 
         # SQS Queue for image processing results
         image_processing_name = "ImageProcessingQueue"

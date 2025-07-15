@@ -19,6 +19,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the AWS-adapted application
 COPY app_aws.py ./app.py
+COPY .env ./
 
 # Health check endpoint (for ECS)
 EXPOSE 8080

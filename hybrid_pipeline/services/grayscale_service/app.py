@@ -9,7 +9,7 @@ import boto3
 # Configurazione AWS
 AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID')
 AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY')
-AWS_REGION = os.environ.get('AWS_DEFAULT_REGION', 'eu-central-1')
+AWS_REGION = os.environ.get('AWS_REGION', 'eu-central-1')
 
 # S3 buckets
 INPUT_BUCKET = os.environ.get('INPUT_BUCKET', f'images-input-544547773663-eu-central-1')
@@ -84,22 +84,23 @@ def process_message(msg):
         MessageDeduplicationId=str(time.time())
     )
 
-def poll_sqs():
-    print(' [*] Waiting for messages on SQS FIFO queue. To exit press CTRL+C')
-    while True:
-        resp = sqs.receive_message(
-            QueueUrl=QUEUE_URL,
-            MaxNumberOfMessages=1,
-            WaitTimeSeconds=20
-        )
-        messages = resp.get('Messages', [])
-        for m in messages:
-            try:
-                msg = json.loads(m['Body']) if isinstance(m['Body'], str) else m['Body']
-                process_message(msg)
-                sqs.delete_message(QueueUrl=QUEUE_URL, ReceiptHandle=m['ReceiptHandle'])
-            except Exception as e:
-                print(f'Errore nel processare il messaggio: {e}')
 
-if __name__ == '__main__':
-    poll_sqs()
+def main():
+    print("Grayscale service started - AWS version")
+    print(f"Input bucket: {INPUT_BUCKET}")
+    print(f"Output bucket: {OUTPUT_BUCKET}")
+    print(f"Queue URL: {QUEUE_URL}")
+    # Modalità event-driven: processa solo input diretto (file o stdin)
+    if len(sys.argv) > 1:
+        with open(sys.argv[1], 'r') as f:
+            message_body = json.load(f)
+    else:
+        try:
+            message_body = json.load(sys.stdin)
+        except Exception:
+            print("No valid JSON input provided. Exiting.")
+            return
+    process_message(message_body)
+
+if __name__ == "__main__":
+    main()
