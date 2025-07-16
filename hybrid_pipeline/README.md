@@ -1,6 +1,6 @@
 
 
-# Hybrid Pipeline AWS - Image & Video Processing
+# Hybrid Pipeline AWS - Image & Live Video Processing
 
 ## Obiettivo
 Pipeline ibrida per processare **immagini** e **video** in modo completamente event-driven e serverless su AWS, sfruttando servizi gestiti per orchestrazione, scalabilità e monitoraggio.
@@ -40,17 +40,17 @@ flowchart TD
     ECSGray --Process--> S3Output
     ECSGray --Send Metrics--> SQSImage
 
-    %% Video Pipeline
+    %% Live Video Pipeline
     User2([👤 Utente/Servizio]):::user
-    S3VideoInput([🗂️ VideoInputBucket]):::s3
+    Producer([🎥 Producer Webcam]):::user
     Kinesis([🔀 Kinesis VideoFrameStream]):::kinesis
     ECSYolo([🖥️ ECS Fargate: YOLOTask]):::ecs
     S3Frames([🗂️ VideoFramesBucket]):::s3
     SQSVideo([📨 SQS FIFO: video-processing-results]):::sqs
     LB([🌐 Load Balancer]):::lb
 
-    User2 --Upload--> S3VideoInput
-    S3VideoInput --Frames--> Kinesis
+    User2 --Avvia--> Producer
+    Producer --Invia frame--> Kinesis
     Kinesis --Stream--> ECSYolo
     ECSYolo --Save--> S3Frames
     ECSYolo --Send Results--> SQSVideo
@@ -85,18 +85,18 @@ sequenceDiagram
 
 ---
 
-### Video Processing Pipeline
+### Live Video Processing Pipeline
 ```mermaid
 sequenceDiagram
     participant User
-    participant S3VideoInput
+    participant Producer
     participant Kinesis
     participant ECSYolo
     participant S3Frames
     participant SQSVideo
     participant LB
-    User->>S3VideoInput: Upload video
-    S3VideoInput->>Kinesis: Extract frames
+    User->>Producer: Avvia producer webcam
+    Producer->>Kinesis: Invia frame
     Kinesis->>ECSYolo: Stream frames
     ECSYolo->>S3Frames: Save results
     ECSYolo->>SQSVideo: Send results
@@ -107,7 +107,7 @@ sequenceDiagram
 
 ## Componenti Principali
 
-- **S3**: Bucket per input/output immagini e video
+- **S3**: Bucket per input/output immagini, bucket per frame video
 - **Lambda**: Dispatcher per trigger S3 → Step Functions
 - **Step Functions**: Orchestrazione workflow (image)
 - **ECS Fargate**: Container per grayscale (C/OpenMP) e YOLO (video)
@@ -121,7 +121,7 @@ sequenceDiagram
 ## Mapping tra CDK e Servizi Custom
 
 - **Grayscale Service**: `services/grayscale_service/app_aws.py` (AWS), orchestrato da Step Functions, container ECS Fargate
-- **YOLO Stream Service**: `services/stream_service/app_cloud.py` (AWS), container ECS Fargate, consuma da Kinesis, salva su S3/SQS, esposto via Load Balancer
+- **YOLO Stream Service**: `services/stream_service/app_cloud.py` (AWS), container ECS Fargate, consuma frame da Kinesis (prodotti dal producer webcam), salva su S3/SQS, esposto via Load Balancer
 - **Dispatcher Lambda**: `lambda/dispatcher/dispatcher.py`, trigger S3, avvia Step Functions
 
 ---
@@ -136,10 +136,10 @@ sequenceDiagram
 5. Il container processa l’immagine, la salva su S3 output e invia un messaggio su SQS FIFO.
 6. Un consumer può leggere il messaggio SQS per trigger successivi o metriche.
 
-### Video Pipeline
-1. L’utente carica un video su S3.
-2. I frame vengono estratti e inviati su Kinesis.
-3. Il servizio ECS Fargate YOLO consuma i frame, processa, salva su S3 frames e invia risultati su SQS FIFO.
+### Live Video Pipeline
+1. L’utente avvia il producer webcam.
+2. Il producer invia i frame direttamente su Kinesis.
+3. Il servizio ECS Fargate YOLO consuma i frame da Kinesis, processa, salva su S3 frames e invia risultati su SQS FIFO.
 4. Il servizio è accessibile via HTTP tramite Load Balancer.
 
 ---
@@ -150,7 +150,7 @@ sequenceDiagram
 2. **Deploy**: `cdk deploy` per creare lo stack.
 3. **Test**:
    - Upload immagini su S3 → verifica output su S3/SQS FIFO
-   - Upload video → verifica stream frame, output YOLO su S3/SQS FIFO
+   - Avvio producer webcam → verifica stream frame, output YOLO su S3/SQS FIFO
    - Accesso HTTP al servizio video
 
 ---
@@ -160,7 +160,7 @@ sequenceDiagram
 - Pipeline pronta per deploy e test.
 - Tutti i servizi custom integrati e orchestrati tramite CDK.
 - Struttura modulare, estendibile e robusta.
-- Code SQS FIFO per risultati image/video.
+- Code SQS FIFO per risultati image e video live.
 
 ---
 
