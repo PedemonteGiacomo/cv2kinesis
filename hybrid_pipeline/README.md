@@ -12,6 +12,17 @@ Pipeline ibrida per processare **immagini** e **video** in modo completamente ev
 ### Diagramma Generale
 ```mermaid
 flowchart TD
+    %% Legenda
+    classDef aws fill:#f7f7f7,stroke:#232f3e,stroke-width:2px,color:#232f3e;
+    classDef s3 fill:#f0fff0,stroke:#2e8b57,stroke-width:2px,color:#2e8b57;
+    classDef lambda fill:#fffbe6,stroke:#f7b731,stroke-width:2px,color:#f7b731;
+    classDef stepfn fill:#e6f7ff,stroke:#0073bb,stroke-width:2px,color:#0073bb;
+    classDef ecs fill:#e6e6fa,stroke:#5a189a,stroke-width:2px,color:#5a189a;
+    classDef kinesis fill:#e0f7fa,stroke:#00bcd4,stroke-width:2px,color:#00bcd4;
+    classDef sqs fill:#fff0f5,stroke:#c71585,stroke-width:2px,color:#c71585;
+    classDef lb fill:#f0f8ff,stroke:#4682b4,stroke-width:2px,color:#4682b4;
+    classDef user fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#333;
+    classDef consumer fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#333;
 
     %% Image Pipeline
     User1([👤 Utente/Servizio]):::user
@@ -50,19 +61,6 @@ flowchart TD
     SQSImage --Notify--> Consumer
     SQSVideo --Notify--> Consumer
 
-    %% Legenda
-    subgraph Legenda
-        aws1([AWS Service]):::aws
-        s31([S3 Bucket]):::s3
-        lambda1([Lambda]):::lambda
-        stepfn1([Step Functions]):::stepfn
-        ecs1([ECS Fargate]):::ecs
-        kinesis1([Kinesis]):::kinesis
-        sqs1([SQS FIFO]):::sqs
-        lb1([Load Balancer]):::lb
-        user1([Utente/Servizio]):::user
-        consumer1([Consumer]):::consumer
-    end
 ```
 
 ---
