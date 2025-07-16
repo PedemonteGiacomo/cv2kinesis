@@ -3,5 +3,9 @@
     "eu-central-1a",
     "eu-central-1b",
     "eu-central-1c"
+  ],
+  "acknowledged-issue-numbers": [
+    34892,
+    34892
   ]
 }

@@ -12,24 +12,68 @@ Pipeline ibrida per processare **immagini** e **video** in modo completamente ev
 ### Diagramma Generale
 ```mermaid
 flowchart TD
-    subgraph Image Pipeline
-        A1[Utente/Servizio] --Upload--> S3Input[ImageInputBucket]
-        S3Input --Event--> LambdaDispatcher[ImageS3DispatcherLambda]
-        LambdaDispatcher --Trigger--> StepFunc[ImageProcessingStateMachine]
-        StepFunc --Run ECS--> ECSGray[ECS Fargate: GrayscaleTask]
-        ECSGray --Process--> S3Output[ImageOutputBucket]
-        ECSGray --Send Metrics--> SQSImage[SQS FIFO: image-processing-results]
-    end
-    subgraph Video Pipeline
-        B1[Utente/Servizio] --Upload--> S3VideoInput[VideoInputBucket]
-        S3VideoInput --Frames--> Kinesis[Kinesis VideoFrameStream]
-        Kinesis --Stream--> ECSYolo[ECS Fargate: YOLOTask]
-        ECSYolo --Save--> S3Frames[VideoFramesBucket]
-        ECSYolo --Send Results--> SQSVideo[SQS FIFO: video-processing-results]
-        ECSYolo --Expose--> LB[Load Balancer]
-    end
-    SQSImage --Notify--> Consumer[Consumer]
+    %% Legenda
+    classDef aws fill:#f7f7f7,stroke:#232f3e,stroke-width:2px,color:#232f3e;
+    classDef s3 fill:#f0fff0,stroke:#2e8b57,stroke-width:2px,color:#2e8b57;
+    classDef lambda fill:#fffbe6,stroke:#f7b731,stroke-width:2px,color:#f7b731;
+    classDef stepfn fill:#e6f7ff,stroke:#0073bb,stroke-width:2px,color:#0073bb;
+    classDef ecs fill:#e6e6fa,stroke:#5a189a,stroke-width:2px,color:#5a189a;
+    classDef kinesis fill:#e0f7fa,stroke:#00bcd4,stroke-width:2px,color:#00bcd4;
+    classDef sqs fill:#fff0f5,stroke:#c71585,stroke-width:2px,color:#c71585;
+    classDef lb fill:#f0f8ff,stroke:#4682b4,stroke-width:2px,color:#4682b4;
+    classDef user fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#333;
+    classDef consumer fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#333;
+
+    %% Image Pipeline
+    User1([👤 Utente/Servizio]):::user
+    S3Input([🗂️ ImageInputBucket]):::s3
+    LambdaDispatcher([🦸‍♂️ ImageS3DispatcherLambda]):::lambda
+    StepFunc([🔗 ImageProcessingStateMachine]):::stepfn
+    ECSGray([🖥️ ECS Fargate: GrayscaleTask]):::ecs
+    S3Output([🗂️ ImageOutputBucket]):::s3
+    SQSImage([📨 SQS FIFO: image-processing-results]):::sqs
+
+    User1 --Upload--> S3Input
+    S3Input --Event--> LambdaDispatcher
+    LambdaDispatcher --Trigger--> StepFunc
+    StepFunc --Run ECS--> ECSGray
+    ECSGray --Process--> S3Output
+    ECSGray --Send Metrics--> SQSImage
+
+    %% Video Pipeline
+    User2([👤 Utente/Servizio]):::user
+    S3VideoInput([🗂️ VideoInputBucket]):::s3
+    Kinesis([🔀 Kinesis VideoFrameStream]):::kinesis
+    ECSYolo([🖥️ ECS Fargate: YOLOTask]):::ecs
+    S3Frames([🗂️ VideoFramesBucket]):::s3
+    SQSVideo([📨 SQS FIFO: video-processing-results]):::sqs
+    LB([🌐 Load Balancer]):::lb
+
+    User2 --Upload--> S3VideoInput
+    S3VideoInput --Frames--> Kinesis
+    Kinesis --Stream--> ECSYolo
+    ECSYolo --Save--> S3Frames
+    ECSYolo --Send Results--> SQSVideo
+    ECSYolo --Expose--> LB
+
+    %% Consumer
+    Consumer([👁️ Consumer]):::consumer
+    SQSImage --Notify--> Consumer
     SQSVideo --Notify--> Consumer
+
+    %% Legenda
+    subgraph Legenda
+        aws1([AWS Service]):::aws
+        s31([S3 Bucket]):::s3
+        lambda1([Lambda]):::lambda
+        stepfn1([Step Functions]):::stepfn
+        ecs1([ECS Fargate]):::ecs
+        kinesis1([Kinesis]):::kinesis
+        sqs1([SQS FIFO]):::sqs
+        lb1([Load Balancer]):::lb
+        user1([Utente/Servizio]):::user
+        consumer1([Consumer]):::consumer
+    end
 ```
 
 ---
