@@ -12,7 +12,7 @@ AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
 AWS_REGION = os.getenv('AWS_REGION', 'eu-central-1')
 
 # Configurazione Kinesis
-KINESIS_STREAM_NAME = 'cv2kinesis'
+KINESIS_STREAM_NAME = 'cv2kinesis-hybrid'
 
 # Configurazione Webcam
 CAM_URI = 0  # Webcam predefinita
