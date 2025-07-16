@@ -104,13 +104,11 @@ def main():
     print(f"  {GREEN}1️⃣{RESET}  Build & Deploy completo (Docker + CDK)")
     print(f"  {GREEN}2️⃣{RESET}  Solo build & push immagini Docker")
     print(f"  {GREEN}3️⃣{RESET}  Solo deploy CDK stack")
-    print(f"  {GREEN}4️⃣{RESET}  Test VIDEO PIPELINE")
-    print(f"      {CYAN}4a.{RESET} 🎥 Live: Producer webcam → Kinesis + stream web")
-    print(f"      {CYAN}4b.{RESET} 📦 Batch: Carica video su S3, verifica output su S3/SQS")
+    print(f"  {GREEN}4️⃣{RESET}  Test VIDEO PIPELINE (live)")
     print(f"  {GREEN}5️⃣{RESET}  Test IMAGE PIPELINE (carica immagine, verifica output)")
     print(SEP)
     print(f"{BOLD}Istruzioni:{RESET} Scegli l'opzione desiderata e premi Invio. Puoi interrompere in qualsiasi momento con Ctrl+C.")
-    choice = input(f"\n👉 Scegli operazione [{GREEN}1,2,3,4a,4b,5{RESET}]: ")
+    choice = input(f"\n👉 Scegli operazione [{GREEN}1,2,3,4,5{RESET}]: ")
 
     if choice == "1":
         # Build e push di entrambe le immagini
@@ -135,14 +133,10 @@ def main():
         build_and_push_image(os.path.join("services", "grayscale_service"), "grayscale:latest", "hybrid-pipeline-grayscale")
     elif choice == "3":
         deploy_stack()
-    elif choice == "4a":
-        print_step("TEST LIVE VIDEO PIPELINE")
+    elif choice == "4":
+        print_step("TEST VIDEO PIPELINE (live)")
         print("Questo test avvia il producer (webcam → Kinesis) e apre il browser sul servizio stream per vedere i frame processati in tempo reale.")
         subprocess.run([sys.executable, "test_video_live_pipeline.py"])
-    elif choice == "4b":
-        print_step("TEST VIDEO PIPELINE DA FILE SU S3 (batch)")
-        print("Questo test carica un video su S3, attende l'elaborazione e verifica l'output frame su S3 e il messaggio su SQS.")
-        subprocess.run([sys.executable, "test_video_pipeline.py"])
     elif choice == "5":
         print_step("TEST AUTOMATICO IMAGE PIPELINE")
         print("Questo test carica un'immagine su S3, attende l'elaborazione e verifica l'output su S3/SQS.")

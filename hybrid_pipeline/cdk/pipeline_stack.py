@@ -96,13 +96,6 @@ class HybridPipelineStack(Stack):
         else:
             video_frames_bucket = s3.Bucket(self, "VideoFramesBucket", bucket_name=video_frames_name, removal_policy=RemovalPolicy.DESTROY, auto_delete_objects=True)
 
-        # S3 bucket for video input
-        video_input_name = f"videos-input-{account}-{region}"
-        if bucket_exists(video_input_name):
-            video_input_bucket = s3.Bucket.from_bucket_name(self, "VideoInputBucket", video_input_name)
-        else:
-            video_input_bucket = s3.Bucket(self, "VideoInputBucket", bucket_name=video_input_name, removal_policy=RemovalPolicy.DESTROY, auto_delete_objects=True)
-
         # SQS queue for video processing results (FIFO)
         video_processing_name = f"video-processing-results-{account}.fifo"
         video_processing_arn = f"arn:aws:sqs:{region}:{account}:{video_processing_name}"
@@ -393,19 +386,6 @@ class HybridPipelineStack(Stack):
             self, "ImageProcessingQueueURL",
             value=image_processing_queue.queue_url,
             description="SQS FIFO queue URL for image processing results"
-        )
-        
-        # Video Processing Outputs
-        CfnOutput(
-            self, "VideoInputBucketName",
-            value=video_input_bucket.bucket_name,
-            description="S3 bucket for input videos"
-        )
-        
-        CfnOutput(
-            self, "VideoFramesBucketName", 
-            value=video_frames_bucket.bucket_name,
-            description="S3 bucket for video frames and processed results"
         )
         
         CfnOutput(
