@@ -1,92 +1,145 @@
 
+
 # Hybrid Pipeline AWS - Image & Video Processing
 
 ## Obiettivo
 Pipeline ibrida per processare **immagini** e **video** in modo completamente event-driven e serverless su AWS, sfruttando servizi gestiti per orchestrazione, scalabilità e monitoraggio.
 
+---
+
 ## Architettura Completa
 
-### 1. Image Processing Pipeline
-**Flusso End-to-End:**
-1. **Upload**: Un file `.jpg` o `.png` viene caricato su S3 (`ImageInputBucket`).
-2. **Trigger**: L'evento S3 attiva la Lambda `ImageS3DispatcherLambda`.
-3. **Dispatcher Lambda**: (`lambda/dispatcher/dispatcher.py`) riceve l'evento e avvia la State Machine Step Functions (`ImageProcessingStateMachine`).
-4. **Step Functions**: Orchestrazione del workflow, che esegue un task ECS Fargate (`GrayscaleTaskDefinition`).
-5. **Grayscale Service**: Il container custom (`services/grayscale_service/app_aws.py`) riceve i parametri (bucket/key), processa l'immagine in C/OpenMP, salva il risultato su S3 (`ImageOutputBucket`) e invia metriche su SQS (`ImageProcessingQueue`).
-6. **Output**: Immagine processata su S3, messaggio su SQS.
+### Diagramma Generale
+```mermaid
+flowchart TD
+    subgraph Image Pipeline
+        A1[Utente/Servizio] --Upload--> S3Input[ImageInputBucket]
+        S3Input --Event--> LambdaDispatcher[ImageS3DispatcherLambda]
+        LambdaDispatcher --Trigger--> StepFunc[ImageProcessingStateMachine]
+        StepFunc --Run ECS--> ECSGray[ECS Fargate: GrayscaleTask]
+        ECSGray --Process--> S3Output[ImageOutputBucket]
+        ECSGray --Send Metrics--> SQSImage[SQS FIFO: image-processing-results]
+    end
+    subgraph Video Pipeline
+        B1[Utente/Servizio] --Upload--> S3VideoInput[VideoInputBucket]
+        S3VideoInput --Frames--> Kinesis[Kinesis VideoFrameStream]
+        Kinesis --Stream--> ECSYolo[ECS Fargate: YOLOTask]
+        ECSYolo --Save--> S3Frames[VideoFramesBucket]
+        ECSYolo --Send Results--> SQSVideo[SQS FIFO: video-processing-results]
+        ECSYolo --Expose--> LB[Load Balancer]
+    end
+    SQSImage --Notify--> Consumer[Consumer]
+    SQSVideo --Notify--> Consumer
+```
 
-**Componenti:**
-- S3: `ImageInputBucket`, `ImageOutputBucket`
-- Lambda: `ImageS3DispatcherLambda` (trigger S3)
-- Step Functions: `ImageProcessingStateMachine` (workflow)
-- ECS Fargate: `GrayscaleTaskDefinition` (container da `services/grayscale_service`)
-- SQS: `ImageProcessingQueue` (output/metriche)
+---
 
-### 2. Video Processing Pipeline
-**Flusso End-to-End:**
-1. **Upload**: Un video viene caricato su S3 (`VideoInputBucket`).
-2. **Frame Extraction**: I frame vengono inviati su Kinesis Data Streams (`VideoFrameStream`).
-3. **ECS Fargate Service**: Il servizio ECS (`StreamTaskDefinition` + `ApplicationLoadBalancedFargateService`) esegue il container YOLO (`services/stream_service/app_cloud.py`).
-4. **YOLO Service**: Il container consuma i frame da Kinesis, applica YOLO (object detection), salva i risultati su S3 (`VideoFramesBucket`) e invia i risultati su SQS FIFO (`VideoProcessingQueue`).
-5. **Accesso**: Il servizio è esposto tramite Application Load Balancer (`VideoStreamServiceURL`).
+### Image Processing Pipeline
+```mermaid
+sequenceDiagram
+    participant User
+    participant S3Input
+    participant Lambda
+    participant StepFunc
+    participant ECSGray
+    participant S3Output
+    participant SQSImage
+    User->>S3Input: Upload .jpg/.png
+    S3Input->>Lambda: S3 Event
+    Lambda->>StepFunc: Start Execution
+    StepFunc->>ECSGray: Run Task (image_key, bucket)
+    ECSGray->>S3Output: Save processed image
+    ECSGray->>SQSImage: Send metrics/results
+```
 
-**Componenti:**
-- S3: `VideoInputBucket`, `VideoFramesBucket`
-- Kinesis: `VideoFrameStream` (streaming frame)
-- ECS Fargate: `StreamTaskDefinition` (container da `services/stream_service`)
-- SQS: `VideoProcessingQueue` (risultati, FIFO)
-- ECR: `StreamRepository` (immagine container YOLO)
-- Load Balancer: `VideoStreamServiceURL` (accesso HTTP)
+---
+
+### Video Processing Pipeline
+```mermaid
+sequenceDiagram
+    participant User
+    participant S3VideoInput
+    participant Kinesis
+    participant ECSYolo
+    participant S3Frames
+    participant SQSVideo
+    participant LB
+    User->>S3VideoInput: Upload video
+    S3VideoInput->>Kinesis: Extract frames
+    Kinesis->>ECSYolo: Stream frames
+    ECSYolo->>S3Frames: Save results
+    ECSYolo->>SQSVideo: Send results
+    ECSYolo->>LB: Expose HTTP API
+```
+
+---
+
+## Componenti Principali
+
+- **S3**: Bucket per input/output immagini e video
+- **Lambda**: Dispatcher per trigger S3 → Step Functions
+- **Step Functions**: Orchestrazione workflow (image)
+- **ECS Fargate**: Container per grayscale (C/OpenMP) e YOLO (video)
+- **Kinesis**: Streaming frame video
+- **SQS FIFO**: Code per risultati (image/video)
+- **ECR**: Repository immagini container
+- **Load Balancer**: Accesso HTTP al servizio video
+
+---
 
 ## Mapping tra CDK e Servizi Custom
 
-- **Grayscale Service**:
-  - Definito in `services/grayscale_service/app_aws.py` (per AWS) e `app.py` (per locale/minio).
-  - Deployato come container su ECS Fargate tramite `GrayscaleTaskDefinition`.
-  - Orchestrato da Step Functions (`ImageProcessingStateMachine`).
+- **Grayscale Service**: `services/grayscale_service/app_aws.py` (AWS), orchestrato da Step Functions, container ECS Fargate
+- **YOLO Stream Service**: `services/stream_service/app_cloud.py` (AWS), container ECS Fargate, consuma da Kinesis, salva su S3/SQS, esposto via Load Balancer
+- **Dispatcher Lambda**: `lambda/dispatcher/dispatcher.py`, trigger S3, avvia Step Functions
 
-- **YOLO Stream Service**:
-  - Definito in `services/stream_service/app_cloud.py` (per AWS) e `app.py` (per locale).
-  - Deployato come container su ECS Fargate tramite `StreamTaskDefinition`.
-  - Consuma frame da Kinesis, salva risultati su S3/SQS, esposto via Load Balancer.
+---
 
-- **Dispatcher Lambda**:
-  - Codice in `lambda/dispatcher/dispatcher.py`.
-  - Trigger S3, avvia Step Functions.
+## Flussi di Interazione
 
-## Dettagli Tecnici
+### Image Pipeline
+1. L’utente carica un’immagine su S3.
+2. S3 genera un evento che attiva la Lambda dispatcher.
+3. La Lambda avvia la Step Function.
+4. Step Function esegue il task ECS Fargate (grayscale).
+5. Il container processa l’immagine, la salva su S3 output e invia un messaggio su SQS FIFO.
+6. Un consumer può leggere il messaggio SQS per trigger successivi o metriche.
 
-- **Event-driven**: Ogni step è attivato da un evento (upload, stream, messaggio).
-- **Serverless**: Nessuna gestione server, tutto gestito da AWS.
-- **Scalabilità**: ECS Fargate e Kinesis scalano automaticamente.
-- **Estensibilità**: Facile aggiungere nuovi step/servizi.
-- **Monitoraggio**: Step Functions, CloudWatch, SQS per tracing/debug.
+### Video Pipeline
+1. L’utente carica un video su S3.
+2. I frame vengono estratti e inviati su Kinesis.
+3. Il servizio ECS Fargate YOLO consuma i frame, processa, salva su S3 frames e invia risultati su SQS FIFO.
+4. Il servizio è accessibile via HTTP tramite Load Balancer.
 
-## Output e Risorse Principali
-
-- S3 bucket immagini input/output
-- S3 bucket video input/frames
-- SQS code per risultati
-- Kinesis stream per frame video
-- ECR repository per container
-- URL servizio video via Load Balancer
-- ARN State Machine Step Functions
+---
 
 ## Come Deployare e Testare
 
 1. **Synth**: `cdk synth` per validare la definizione.
 2. **Deploy**: `cdk deploy` per creare lo stack.
 3. **Test**:
-   - Upload immagini su S3 → verifica output su S3/SQS
-   - Upload video → verifica stream frame, output YOLO su S3/SQS
+   - Upload immagini su S3 → verifica output su S3/SQS FIFO
+   - Upload video → verifica stream frame, output YOLO su S3/SQS FIFO
    - Accesso HTTP al servizio video
-
-## Stato Attuale
-
-- La pipeline è definita e pronta per deploy.
-- Tutti i servizi custom sono integrati e orchestrati tramite CDK.
-- La struttura è modulare e pronta per estensioni future.
 
 ---
 
-**Questa README descrive in modo completo l'architettura, il flusso e l'integrazione tra CDK e servizi custom.**
+## Stato Attuale
+
+- Pipeline pronta per deploy e test.
+- Tutti i servizi custom integrati e orchestrati tramite CDK.
+- Struttura modulare, estendibile e robusta.
+- Code SQS FIFO per risultati image/video.
+
+---
+
+## Note per il Team
+
+- Tutti i flussi sono event-driven e serverless.
+- I diagrammi mermaid sono renderizzabili su GitHub.
+- Per test end-to-end, usa lo script `deploy_and_test.py`.
+- Per estensioni, aggiungi nuovi step/servizi in CDK e aggiorna i container custom.
+
+---
+
+**Questa README ora include diagrammi, flussi e istruzioni chiare per il team.**

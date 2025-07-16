@@ -1,3 +1,2 @@
 aws-cdk-lib
 constructs
-aws-cdk.aws-lambda-python-alpha

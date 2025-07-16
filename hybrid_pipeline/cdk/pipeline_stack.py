@@ -66,13 +66,21 @@ class HybridPipelineStack(Stack):
         image_output_name = f"images-output-{account}-{region}"
         image_output_bucket = s3.Bucket(self, "ImageOutputBucket", bucket_name=image_output_name, removal_policy=RemovalPolicy.DESTROY, auto_delete_objects=True)
 
-        # SQS Queue for image processing results
-        image_processing_name = "ImageProcessingQueue"
+        # SQS FIFO Queue for image processing results
+        image_processing_name = f"image-processing-results-{account}.fifo"
         image_processing_arn = f"arn:aws:sqs:{region}:{account}:{image_processing_name}"
         if sqs_exists(image_processing_name):
             image_processing_queue = sqs.Queue.from_queue_arn(self, "ImageProcessingQueue", image_processing_arn)
         else:
-            image_processing_queue = sqs.Queue(self, "ImageProcessingQueue", visibility_timeout=Duration.seconds(300), retention_period=Duration.days(14))
+            image_processing_queue = sqs.Queue(
+                self,
+                "ImageProcessingQueue",
+                queue_name=image_processing_name,
+                fifo=True,
+                content_based_deduplication=True,
+                visibility_timeout=Duration.seconds(300),
+                removal_policy=RemovalPolicy.RETAIN
+            )
 
         # ECR Repository for the grayscale service
         grayscale_ecr_name = "hybrid-pipeline-grayscale"
@@ -97,15 +105,19 @@ class HybridPipelineStack(Stack):
 
         # SQS queue for video processing results (FIFO)
         video_processing_name = f"video-processing-results-{account}.fifo"
-        video_processing_queue = sqs.Queue(
-            self,
-            "VideoProcessingQueue",
-            queue_name=video_processing_name,
-            fifo=True,
-            content_based_deduplication=True,
-            visibility_timeout=Duration.seconds(300),
-            removal_policy=RemovalPolicy.RETAIN
-        )
+        video_processing_arn = f"arn:aws:sqs:{region}:{account}:{video_processing_name}"
+        if sqs_exists(video_processing_name):
+            video_processing_queue = sqs.Queue.from_queue_arn(self, "VideoProcessingQueue", video_processing_arn)
+        else:
+            video_processing_queue = sqs.Queue(
+                self,
+                "VideoProcessingQueue",
+                queue_name=video_processing_name,
+                fifo=True,
+                content_based_deduplication=True,
+                visibility_timeout=Duration.seconds(300),
+                removal_policy=RemovalPolicy.RETAIN
+            )
 
         # Kinesis stream for video frames
         kinesis_stream_name = "cv2kinesis-hybrid"

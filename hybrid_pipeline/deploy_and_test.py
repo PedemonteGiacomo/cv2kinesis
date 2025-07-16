@@ -44,28 +44,8 @@ def deploy_stack():
     if result.returncode != 0:
         print("❌ CDK deploy failed")
         return False, {}
-
-    print_step("📋 GET STACK OUTPUTS")
-    try:
-        result = subprocess.run([
-            "aws", "cloudformation", "describe-stacks", "--stack-name", "HybridPipelineStack"
-        ], capture_output=True, text=True)
-        if result.returncode == 0:
-            stack_data = json.loads(result.stdout)
-            outputs = {}
-            for output in stack_data['Stacks'][0].get('Outputs', []):
-                outputs[output['OutputKey']] = output['OutputValue']
-            print("✅ Stack deployed successfully!")
-            print("\n📋 STACK OUTPUTS:")
-            for key, value in outputs.items():
-                print(f"   {key}: {value}")
-            return True, outputs
-        else:
-            print("⚠️ Could not get stack outputs")
-            return True, {}
-    except Exception as e:
-        print(f"⚠️ Error getting outputs: {e}")
-        return True, {}
+    print("✅ Stack deployed! Gli outputs sono già visibili sopra.")
+    return True, {}
 
 def run_producer():
     """Avvia producer per inviare video a Kinesis"""
