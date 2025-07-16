@@ -18,7 +18,11 @@ def print_step(msg):
 def build_and_push_image(service_dir, image_name, ecr_repo):
     """Build e push dell'immagine Docker su ECR per un servizio"""
     print_step(f"🔨 BUILD DOCKER IMAGE ({service_dir})")
-    build_cmd = ["docker", "build", "-t", image_name, "."]
+    # Usa Dockerfile_aws per grayscale_service
+    if "grayscale_service" in service_dir:
+        build_cmd = ["docker", "build", "-t", image_name, "-f", "Dockerfile_aws", "."]
+    else:
+        build_cmd = ["docker", "build", "-t", image_name, "."]
     result = subprocess.run(build_cmd, cwd=service_dir)
     if result.returncode != 0:
         print(f"❌ Docker build failed for {service_dir}")
@@ -87,13 +91,26 @@ def wait_for_service_healthy(load_balancer_url):
 def main():
     print_step("DEPLOY & TEST PIPELINE CLOUD IBRIDA")
     print("🏗️ Architettura: Webcam → Kinesis → ECS → S3 → SQS → Consumer\n")
-    print("Operazioni disponibili:")
-    print("  1. Build e deploy completo (Docker + CDK)")
-    print("  2. Solo build e push immagini Docker")
-    print("  3. Solo deploy CDK stack")
-    print("  4. Test live VIDEO PIPELINE (producer webcam → Kinesis + stream web)")
-    print("  5. Test automatico IMAGE PIPELINE (carica immagine, verifica output)")
-    choice = input("\nScegli operazione [1-5]: ")
+    # Colori ANSI (se supportati)
+    YELLOW = '\033[93m'
+    CYAN = '\033[96m'
+    GREEN = '\033[92m'
+    RESET = '\033[0m'
+    BOLD = '\033[1m'
+    SEP = f"{CYAN}{'═'*60}{RESET}"
+    print(SEP)
+    print(f"{BOLD}{YELLOW}🌟 MENU OPERAZIONI PIPELINE 🌟{RESET}")
+    print(SEP)
+    print(f"  {GREEN}1️⃣{RESET}  Build & Deploy completo (Docker + CDK)")
+    print(f"  {GREEN}2️⃣{RESET}  Solo build & push immagini Docker")
+    print(f"  {GREEN}3️⃣{RESET}  Solo deploy CDK stack")
+    print(f"  {GREEN}4️⃣{RESET}  Test VIDEO PIPELINE")
+    print(f"      {CYAN}4a.{RESET} 🎥 Live: Producer webcam → Kinesis + stream web")
+    print(f"      {CYAN}4b.{RESET} 📦 Batch: Carica video su S3, verifica output su S3/SQS")
+    print(f"  {GREEN}5️⃣{RESET}  Test IMAGE PIPELINE (carica immagine, verifica output)")
+    print(SEP)
+    print(f"{BOLD}Istruzioni:{RESET} Scegli l'opzione desiderata e premi Invio. Puoi interrompere in qualsiasi momento con Ctrl+C.")
+    choice = input(f"\n👉 Scegli operazione [{GREEN}1,2,3,4a,4b,5{RESET}]: ")
 
     if choice == "1":
         # Build e push di entrambe le immagini
@@ -112,16 +129,20 @@ def main():
             print(f"📨 SQS queue: {outputs.get('VideoProcessingQueueURL', 'N/A')}")
             if 'VideoStreamServiceURL' in outputs:
                 wait_for_service_healthy(outputs['VideoStreamServiceURL'])
-            print("\n🚀 Pronto per il test! Usa le opzioni 4 o 5 per testare la pipeline.")
+            print("\n🚀 Pronto per il test! Usa le opzioni 4a, 4b o 5 per testare la pipeline.")
     elif choice == "2":
         build_and_push_image(os.path.join("services", "stream_service"), "cv2kinesis:latest", "hybrid-pipeline-stream")
         build_and_push_image(os.path.join("services", "grayscale_service"), "grayscale:latest", "hybrid-pipeline-grayscale")
     elif choice == "3":
         deploy_stack()
-    elif choice == "4":
+    elif choice == "4a":
         print_step("TEST LIVE VIDEO PIPELINE")
         print("Questo test avvia il producer (webcam → Kinesis) e apre il browser sul servizio stream per vedere i frame processati in tempo reale.")
         subprocess.run([sys.executable, "test_video_live_pipeline.py"])
+    elif choice == "4b":
+        print_step("TEST VIDEO PIPELINE DA FILE SU S3 (batch)")
+        print("Questo test carica un video su S3, attende l'elaborazione e verifica l'output frame su S3 e il messaggio su SQS.")
+        subprocess.run([sys.executable, "test_video_pipeline.py"])
     elif choice == "5":
         print_step("TEST AUTOMATICO IMAGE PIPELINE")
         print("Questo test carica un'immagine su S3, attende l'elaborazione e verifica l'output su S3/SQS.")
@@ -130,4 +151,7 @@ def main():
         print("❌ Scelta non valida")
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\n🛑 Esecuzione terminata dall'utente. Tutto ok!")

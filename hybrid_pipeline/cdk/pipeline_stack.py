@@ -370,23 +370,29 @@ class HybridPipelineStack(Stack):
             value=image_input_bucket.bucket_name,
             description="S3 bucket for input images"
         )
-        
+
         CfnOutput(
             self, "ImageOutputBucketName", 
             value=image_output_bucket.bucket_name,
             description="S3 bucket for processed images"
         )
-        
+
         CfnOutput(
             self, "GrayscaleECRRepositoryURI",
             value=grayscale_ecr_repository.repository_uri,
             description="ECR repository for grayscale service container"
         )
-        
+
         CfnOutput(
             self, "ImageProcessingStateMachineArn",
             value=image_processing_machine.state_machine_arn,
             description="Step Functions state machine ARN for image processing"
+        )
+
+        CfnOutput(
+            self, "ImageProcessingQueueURL",
+            value=image_processing_queue.queue_url,
+            description="SQS FIFO queue URL for image processing results"
         )
         
         # Video Processing Outputs

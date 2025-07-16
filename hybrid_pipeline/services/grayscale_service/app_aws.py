@@ -91,11 +91,13 @@ def process_image(bucket, image_key, threads=[1], passes=None, repeats=1):
                 'timestamp': time.time()
             }
             try:
+                # Per SQS FIFO serve MessageGroupId
                 sqs.send_message(
                     QueueUrl=QUEUE_URL,
-                    MessageBody=json.dumps(payload)
+                    MessageBody=json.dumps(payload),
+                    MessageGroupId=str(image_key)
                 )
-                print(f"Result sent to SQS: {processed_key}")
+                print(f"Result sent to SQS FIFO: {processed_key}")
             except ClientError as e:
                 print(f"Error sending message to SQS: {e}")
                 # Don't raise here - the processing was successful even if notification failed

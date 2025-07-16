@@ -48,17 +48,23 @@ def check_sqs(queue_url):
             return (False, None)
 
     while True:
-        messages = sqs.receive_message(QueueUrl=queue_url, MaxNumberOfMessages=1, WaitTimeSeconds=5)
+        # Per SQS FIFO la ricezione è identica, ma si può aggiungere ReceiveRequestAttemptId per deduplica
+        messages = sqs.receive_message(
+            QueueUrl=queue_url,
+            MaxNumberOfMessages=1,
+            WaitTimeSeconds=5,
+            ReceiveRequestAttemptId=str(int(time.time()))
+        )
         if 'Messages' in messages:
             body = messages['Messages'][0]['Body']
-            print("✅ Messaggio trovato su SQS:", body)
+            print("✅ Messaggio trovato su SQS FIFO:", body)
             valid, processed_key = is_valid_message(body, check_sqs.expected_image_key, check_sqs.start_ts)
             if valid:
                 return processed_key
             else:
                 print("⏭️ Messaggio SQS non valido, attendo quello giusto...")
         else:
-            print("⏳ In attesa del messaggio su SQS...")
+            print("⏳ In attesa del messaggio su SQS FIFO...")
         time.sleep(2)
 
 if __name__ == "__main__":
@@ -69,7 +75,7 @@ if __name__ == "__main__":
 
     input_bucket = os.environ.get("IMAGE_INPUT_BUCKET") or "images-input-544547773663-eu-central-1"
     output_bucket = os.environ.get("IMAGE_OUTPUT_BUCKET") or "images-output-544547773663-eu-central-1"
-    queue_url = os.environ.get("IMAGE_PROCESSING_QUEUE_URL") or "https://sqs.eu-central-1.amazonaws.com/544547773663/HybridPipelineStack-ImageProcessingQueue93F2F958-47vWZN1lKvCb"
+    queue_url = os.environ.get("IMAGE_PROCESSING_QUEUE_URL") or "https://sqs.eu-central-1.amazonaws.com/544547773663/image-processing-results-544547773663.fifo"
     test_image = os.environ.get("TEST_IMAGE_PATH") or input("Percorso file immagine da caricare: ")
     output_key = os.path.basename(test_image)
 
