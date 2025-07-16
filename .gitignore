@@ -1,5 +1,6 @@
-src/env/local/.env
-simple/.env
-*.pt
-**/__pycache__
-**/cdk.out
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.log
+.pre-commit-config.yaml
