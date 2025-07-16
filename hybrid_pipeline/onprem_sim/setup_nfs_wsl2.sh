@@ -1,27 +1,27 @@
 #!/usr/bin/env bash
 set -euo pipefail
+DATA_DIR="/data"
+MOUNT_PT="/mnt/z"
 
-if [[ $EUID -ne 0 ]]; then
-    echo "Please run as root or with sudo" >&2
-    exit 1
-fi
-
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DATA_DIR="$SCRIPT_DIR/data"
-
-mkdir -p "$DATA_DIR"
-
+# 1. installa server se manca
 if ! dpkg -s nfs-kernel-server >/dev/null 2>&1; then
-    apt-get update
-    apt-get install -y nfs-kernel-server
+   sudo apt update && sudo apt install -y nfs-kernel-server
 fi
 
-echo "$DATA_DIR *(rw,sync,no_subtree_check,no_root_squash)" > /etc/exports.d/onprem_sim.exports
-exportfs -ra
+# 2. crea dir export solo se non c’è
+sudo mkdir -p "$DATA_DIR"
+sudo chown nobody:nogroup "$DATA_DIR"
 
-mkdir -p /mnt/z
-if ! mountpoint -q /mnt/z; then
-    mount localhost:"$DATA_DIR" /mnt/z
-fi
+# 3. aggiungi export solo se non già presente
+grep -q "^$DATA_DIR " /etc/exports 2>/dev/null || \
+  echo "$DATA_DIR *(rw,sync,no_subtree_check,no_root_squash)" | sudo tee -a /etc/exports
+sudo exportfs -ra
 
-echo "✅ NFS exported from $DATA_DIR and mounted on /mnt/z"
+# 4. avvia/riavvia servizio
+sudo systemctl enable --now nfs-server
+
+# 5. mount locale se non esiste
+sudo mkdir -p "$MOUNT_PT"
+mountpoint -q "$MOUNT_PT" || sudo mount -t nfs -o vers=4 localhost:$DATA_DIR "$MOUNT_PT"
+
+echo "✅ NFS pronto: export $DATA_DIR montato su $MOUNT_PT"
