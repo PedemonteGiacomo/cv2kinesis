@@ -218,17 +218,17 @@ Write-Host "🆕  Task ARN: $taskArn"
 ```mermaid
 flowchart TD
   %% On-Premises
-  subgraph OnPrem [On-Prem Windows]
-    A1([Producer immagini - C:\onprem\producer]) -->|Crea immagini| A2([Cartella SMB - C:\onprem\data])
-    A2 -- "SMB Share" --> A3([\\HOSTNAME\data])
+  subgraph OnPrem [💻 On-Prem Windows]
+    A1([🖼️ Producer immagini - C:\onprem\producer]) -->|Crea immagini| A2([📁 Cartella SMB - C:\onprem\data])
+    A2 -- "SMB Share" --> A3([🔗 \\HOSTNAME\data])
   end
 
   %% DataSync Agent VM
-  subgraph DataSyncAgent [DataSync Agent VM Hyper-V]
-    B1([Configurazione Network - Virtual Switch])
-    B2([Agent Attivato - Activation Key])
-    B3([Location SMB])
-    B4([Task DataSync - Schedulato o Manuale])
+  subgraph DataSyncAgent [🖥️ DataSync Agent VM Hyper-V]
+    B1([⚙️ Configurazione Network - Virtual Switch])
+    B2([🟢 Agent Attivato - Activation Key])
+    B3([📦 Location SMB])
+    B4([🔄 Task DataSync - Schedulato o Manuale])
     B1 --> B2
     B2 --> B3
     B3 -- "Legge da SMB" --> A3
@@ -236,13 +236,13 @@ flowchart TD
   end
 
   %% AWS Cloud
-  subgraph AWS_Cloud [AWS Cloud]
-    C1([S3 Bucket - images-input])
-    C2([Lambda Dispatcher])
-    C3([Step Functions])
-    C4([ECS Grayscale])
-    C5([S3 Output])
-    C6([SQS Queue])
+  subgraph AWS_Cloud [☁️ AWS Cloud]
+    C1([🪣 S3 Bucket - images-input])
+    C2([🧑‍💻 Lambda Dispatcher])
+    C3([🔁 Step Functions])
+    C4([🖥️ ECS Grayscale])
+    C5([🪣 S3 Output])
+    C6([📬 SQS Queue])
     B4 -- "Sync immagini" --> C1
     C1 -- "Trigger" --> C2
     C2 --> C3
