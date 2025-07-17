@@ -246,11 +246,33 @@ flowchart TD
     DSTask -- Sync immagini --> S3Input
   end
 
-  %% Cloud Ingress
-  subgraph CloudIngress [☁️ Cloud Ingress]
-    KinesisOnPrem([🔀 Kinesis Video Stream])
+
+  %% Image Pipeline Cloud
+  subgraph ImagePipeline [🖼️ Image Processing Pipeline]
     S3Input([🪣 S3 Bucket immagini input])
+    LambdaImg([🧑‍💻 Lambda Dispatcher])
+    StepFuncImg([🔗 Step Functions])
+    ECSGray([🖥️ ECS Grayscale])
+    S3OutputImg([🪣 S3 Bucket immagini output])
+    SQSImg([📨 SQS image-processing-results])
+    S3Input -- Event --> LambdaImg
+    LambdaImg -- Trigger --> StepFuncImg
+    StepFuncImg -- Run ECS --> ECSGray
+    ECSGray -- Processed --> S3OutputImg
+    ECSGray -- Metrics --> SQSImg
+  end
+
+  %% Video Pipeline Cloud
+  subgraph VideoPipeline [🎥 Video Processing Pipeline]
+    KinesisOnPrem([🔀 Kinesis Video Stream])
+    ECSYolo([🖥️ ECS YOLO])
+    S3Frames([🪣 S3 Bucket video frames])
+    SQSVideo([📨 SQS video-processing-results])
+    LB([🌐 Load Balancer])
     KinesisOnPrem -- Stream --> ECSYolo
+    ECSYolo -- Save frames --> S3Frames
+    ECSYolo -- Results --> SQSVideo
+    ECSYolo -- Expose API --> LB
   end
 
   %% Image Pipeline Cloud
