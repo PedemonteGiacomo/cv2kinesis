@@ -208,7 +208,7 @@ Write-Host "🆕  Task ARN: $taskArn"
 
    ```powershell
    aws logs tail /aws/lambda/ImageS3DispatcherLambda --since 10m
-   aws logs tail /ecs/grayscale               --since 10m
+   aws logs tail /ecs/grayscale --since 10m
    ```
 
 ---
@@ -217,22 +217,29 @@ Write-Host "🆕  Task ARN: $taskArn"
 
 ```mermaid
 flowchart TD
+
   %% On-Premises
-  subgraph OnPrem [On-Premises]
-    ImgProd([Producer immagini C:\onprem\producer])
-    ImgFolder([Cartella SMB C:\onprem\data])
-    ImgShare([SMB Share \\HOSTNAME\data])
-    VideoProd([Producer webcam OnPrem])
+  subgraph OnPrem [💻 On-Premises]
+    ImgProd([🖼️ Producer immagini<br>C:\onprem\producer])
+    ImgFolder([📁 Cartella SMB<br>C:\onprem\data])
+    ImgShare([🔗 SMB Share<br>\\HOSTNAME\data])
     ImgProd -- Crea immagini --> ImgFolder
     ImgFolder -- SMB Share --> ImgShare
-    VideoProd -- Stream frame --> KinesisOnPrem
+  end
+
+  %% Remote Clients
+  subgraph RemoteClients [🌍 Remote Clients]
+    ImgProdRemote([🖼️ Producer immagini remoto])
+    VideoProdRemote([🎥 Producer webcam remoto])
+    ImgProdRemote -- Upload --> S3Input
+    VideoProdRemote -- Stream frame --> KinesisOnPrem
   end
 
   %% DataSync Agent
-  subgraph DataSyncAgent [DataSync Agent VM]
-    DSAgent([DataSync Agent])
-    DSLoc([Location SMB])
-    DSTask([Task DataSync])
+  subgraph DataSyncAgent [🖥️ DataSync Agent VM]
+    DSAgent([🤖 DataSync Agent])
+    DSLoc([📦 Location SMB])
+    DSTask([🔄 Task DataSync])
     DSAgent -- Legge da SMB --> DSLoc
     DSLoc -- Avvia task --> DSTask
     DSTask -- Prende immagini --> ImgShare
@@ -240,19 +247,19 @@ flowchart TD
   end
 
   %% Cloud Ingress
-  subgraph CloudIngress [Cloud Ingress]
-    KinesisOnPrem([Kinesis Video Stream])
-    S3Input([S3 Bucket immagini input])
+  subgraph CloudIngress [☁️ Cloud Ingress]
+    KinesisOnPrem([🔀 Kinesis Video Stream])
+    S3Input([🪣 S3 Bucket immagini input])
     KinesisOnPrem -- Stream --> ECSYolo
   end
 
   %% Image Pipeline Cloud
-  subgraph ImagePipeline [Image Processing Pipeline]
-    LambdaImg([Lambda Dispatcher])
-    StepFuncImg([Step Functions])
-    ECSGray([ECS Grayscale])
-    S3OutputImg([S3 Bucket immagini output])
-    SQSImg([SQS image-processing-results])
+  subgraph ImagePipeline [🖼️ Image Processing Pipeline]
+    LambdaImg([🧑‍💻 Lambda Dispatcher])
+    StepFuncImg([🔗 Step Functions])
+    ECSGray([🖥️ ECS Grayscale])
+    S3OutputImg([🪣 S3 Bucket immagini output])
+    SQSImg([📨 SQS image-processing-results])
     S3Input -- Event --> LambdaImg
     LambdaImg -- Trigger --> StepFuncImg
     StepFuncImg -- Run ECS --> ECSGray
@@ -261,26 +268,27 @@ flowchart TD
   end
 
   %% Video Pipeline Cloud
-  subgraph VideoPipeline [Video Processing Pipeline]
-    ECSYolo([ECS YOLO])
-    S3Frames([S3 Bucket video frames])
-    SQSVideo([SQS video-processing-results])
-    LB([Load Balancer])
+  subgraph VideoPipeline [🎥 Video Processing Pipeline]
+    ECSYolo([🖥️ ECS YOLO])
+    S3Frames([🪣 S3 Bucket video frames])
+    SQSVideo([📨 SQS video-processing-results])
+    LB([🌐 Load Balancer])
     ECSYolo -- Save frames --> S3Frames
     ECSYolo -- Results --> SQSVideo
     ECSYolo -- Expose API --> LB
   end
 
   %% Consumer
-  Consumer([Consumer])
+  Consumer([👁️ Consumer])
   SQSImg -- Notify --> Consumer
   SQSVideo -- Notify --> Consumer
 
   %% Stili
-  style OnPrem fill:#f9f,stroke:#333,stroke-width:2px
-  style DataSyncAgent fill:#9ff,stroke:#333,stroke-width:2px
-  style CloudIngress fill:#e0e0ff,stroke:#333,stroke-width:2px
-  style ImagePipeline fill:#ff9,stroke:#333,stroke-width:2px
+  style OnPrem fill:#e3f6fc,stroke:#333,stroke-width:2px
+  style RemoteClients fill:#f3e9ff,stroke:#333,stroke-width:2px
+  style DataSyncAgent fill:#e0ffe0,stroke:#333,stroke-width:2px
+  style CloudIngress fill:#fffbe6,stroke:#333,stroke-width:2px
+  style ImagePipeline fill:#fff0f5,stroke:#333,stroke-width:2px
   style VideoPipeline fill:#e6e6fa,stroke:#333,stroke-width:2px
 
   linkStyle default stroke:#888,stroke-width:1.5px
