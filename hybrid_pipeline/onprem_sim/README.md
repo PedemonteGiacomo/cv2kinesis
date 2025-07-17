@@ -1,69 +1,70 @@
+
 # On-Premises SMB → AWS DataSync Hybrid Pipeline
 
-Questo README descrive passo-passo la configurazione di una solution **totalmente Windows** per sincronizzare automaticamente immagini generate localmente in una cartella SMB di Windows verso un bucket S3 `images-input-544547773663-eu-central-1` usando **AWS DataSync**.
+This README provides a step-by-step guide for configuring a **fully Windows-based** solution to automatically synchronize images generated locally in a Windows SMB folder to an S3 bucket `images-input-544547773663-eu-central-1` using **AWS DataSync**.
 
 ---
 
-## 1. Prerequisiti
+## 1. Prerequisites
 
-* **Windows 10/11** con il ruolo **Hyper‑V** attivo.
-* **AWS CLI** configurata con profilo/credenziali che abbiano permessi DataSync, S3 e IAM.
-* (Opzionale) **Python 3** installato per il producer di immagini.
+* **Windows 10/11** with the **Hyper‑V** role enabled.
+* **AWS CLI** configured with a profile/credentials with DataSync, S3, and IAM permissions.
+* (Optional) **Python 3** installed for the image producer.
 
 ---
 
-## 2. Creazione e Condivisione della cartella SMB
+## 2. Create and Share the SMB Folder
 
-1. Apri PowerShell **Admin**.
-2. Crea la directory locale:
+1. Open PowerShell as **Admin**.
+2. Create the local directory:
 
    ```powershell
    New-Item -ItemType Directory -Path C:\onprem\data -Force
    ```
-3. Imposta i permessi NTFS per **Everyone** (Full Control):
+3. Set NTFS permissions for **Everyone** (Full Control):
 
    ```powershell
    icacls C:\onprem\data /grant "Everyone:(OI)(CI)F" /T
    ```
-4. Condividi in SMB la directory:
+4. Share the directory via SMB:
 
    ```powershell
-   # Se la share esiste già, rimuovila:
+   # If the share already exists, remove it:
    Remove-SmbShare -Name data -Force
 
-   # Crea la nuova share
+   # Create the new share
    New-SmbShare -Name data -Path C:\onprem\data -FullAccess Everyone
    ```
-5. Verifica la condivisione:
+5. Verify the share:
 
    ```powershell
    Get-SmbShare -Name data | Format-Table Name,Path,ShareState
    ```
 
-   Dovresti vedere `ShareState: Online`.
+   You should see `ShareState: Online`.
 
 ---
 
-## 3. Configurazione del Virtual Switch Esterno in Hyper‑V
+## 3. Configure the External Virtual Switch in Hyper‑V
 
-Per permettere alla VM DataSync di accedere alla rete del tuo host Windows:
+To allow the DataSync VM to access your Windows host network:
 
-1. In **Hyper‑V Manager**, apri **Virtual Switch Manager** → **New Virtual Network Switch** → **External**.
-2. Seleziona la scheda di rete fisica (es. Wi‑Fi o Ethernet) su cui girerà.
-3. Assegna un nome (ad esempio `ExternalNet`) e salva.
-4. Nelle impostazioni della VM **AWS-DataSync-Agent**, sostituisci il suo **Network Adapter** per usare il switch `ExternalNet`.
+1. In **Hyper‑V Manager**, open **Virtual Switch Manager** → **New Virtual Network Switch** → **External**.
+2. Select the physical network adapter (e.g., Wi‑Fi or Ethernet) to use.
+3. Assign a name (e.g., `ExternalNet`) and save.
+4. In the **AWS-DataSync-Agent** VM settings, change its **Network Adapter** to use the `ExternalNet` switch.
 
 ---
 
-## 4. Import e Configurazione della VM AWS DataSync Agent
+## 4. Import and Configure the AWS DataSync Agent VM
 
-1. Scarica l'OVA o il VHDX di DataSync Agent dalla console AWS.
-2. In **Hyper‑V Manager**: **Import Virtual Machine** → punta alla cartella estratta → mantieni 2 vCPU e 4 GB RAM.
-3. Avvia la VM.
-4. Nel menu nero della VM, scegli **1: Network Configuration** → **2: DHCP** → conferma.
-5. Attendi che `eth0` riceva un IP sulla rete `ExternalNet` (es. `192.168.1.x`).
+1. Download the DataSync Agent OVA or VHDX from the AWS console.
+2. In **Hyper‑V Manager**: **Import Virtual Machine** → point to the extracted folder → keep 2 vCPU and 4 GB RAM.
+3. Start the VM.
+4. In the VM's black menu, choose **1: Network Configuration** → **2: DHCP** → confirm.
+5. Wait for `eth0` to get an IP on the `ExternalNet` network (e.g., `192.168.1.x`).
 
-   * Se non va in DHCP, seleziona **3: Manual** e inserisci:
+   * If DHCP does not work, select **3: Manual** and enter:
 
      ```text
      IP address:   192.168.1.100
@@ -72,45 +73,45 @@ Per permettere alla VM DataSync di accedere alla rete del tuo host Windows:
      DNS:          8.8.8.8,1.1.1.1
      ```
 
-     conferma e riavvia (x → y).
-6. Dal menu, seleziona **0: Get activation key**, copia la chiave.
+     confirm and reboot (x → y).
+6. From the menu, select **0: Get activation key**, copy the key.
 
 ---
 
-## 5. Registrazione Agent in AWS
+## 5. Register the Agent in AWS
 
 1. AWS Console → **DataSync** → **Agents** → **Create agent**
-2. Incolla l'**Activation Key**.
+2. Paste the **Activation Key**.
 3. Region = `eu-central-1`.
-4. Attendi lo stato **ONLINE** e copia la **Agent ARN**.
+4. Wait for **ONLINE** status and copy the **Agent ARN**.
 
 ---
 
-## 6. (Opzionale) Producer di Immagini Locali
+## 6. (Optional) Local Image Producer
 
-Se vuoi popolare automaticamente la share con file `.jpg`:
+If you want to automatically populate the share with `.jpg` files:
 
-1. Installa Python e Pillow.
-2. Copia lo script `onprem_image_producer.py` in `C:\onprem\producer`.
-3. Modifica la path di default sul root `Z:\` mappata.
+1. Install Python and Pillow.
+2. Copy the script `onprem_image_producer.py` to `C:\onprem\producer`.
+3. Edit the default path to the mapped root `Z:\`.
 4. In PowerShell:
 
    ```powershell
-   # Mappa la share SMB come unità Z:
+   # Map the SMB share as drive Z:
    New-PSDrive -Name Z -PSProvider FileSystem -Root \\$env:COMPUTERNAME\data -Persist
 
-   # Avvia il producer in background
+   # Start the producer in background
    Start-Job -Name Producer -ScriptBlock {
        python C:\onprem\producer\onprem_image_producer.py --root Z:\
    }
    ```
-5. Ogni 5 s verrà creato un nuovo `img_00001.jpg` in `Z:\`.
+5. Every 5 s a new `img_00001.jpg` will be created in `Z:\`.
 
 ---
 
-## 7. Creazione Location SMB in DataSync
+## 7. Create SMB Location in DataSync
 
-> **Opzione A: creare nuova Location SMB**
+> **Option A: create a new SMB Location**
 
 ```powershell
 $agentArn = "arn:aws:datasync:eu-central-1:<AWS_ACCOUNT_ID>:agent/<agent-id>"
@@ -126,7 +127,7 @@ $SMB_SRC_LOC = aws datasync create-location-smb `
 Write-Host "🔗 SMB Location ARN: $SMB_SRC_LOC"
 ```
 
-> **Opzione B: usare una Location SMB esistente**
+> **Option B: use an existing SMB Location**
 
 ```powershell
 $SMB_SRC_LOC = "arn:aws:datasync:eu-central-1:544547773663:location/loc-0be375f05b3abbda6"
@@ -134,9 +135,9 @@ $SMB_SRC_LOC = "arn:aws:datasync:eu-central-1:544547773663:location/loc-0be375f0
 
 ---
 
-## 8. Location S3 in DataSync
+## 8. S3 Location in DataSync
 
-> **Opzione A: creare nuova Location S3**
+> **Option A: create a new S3 Location**
 
 ```powershell
 $bucket = "images-input-544547773663-eu-central-1"
@@ -154,7 +155,7 @@ $S3_DST_LOC = aws datasync create-location-s3 `
 Write-Host "🎯 S3 Location ARN: $S3_DST_LOC"
 ```
 
-> **Opzione B: usare un bucket S3 esistente**
+> **Option B: use an existing S3 bucket**
 
 ```powershell
 $S3_DST_LOC = "arn:aws:datasync:eu-central-1:<AWS_ACCOUNT_ID>:location/loc-XYZ_existing"
@@ -162,18 +163,18 @@ $S3_DST_LOC = "arn:aws:datasync:eu-central-1:<AWS_ACCOUNT_ID>:location/loc-XYZ_e
 
 ---
 
-## 9. Creazione o Aggiornamento Task DataSync
+## 9. Create or Update DataSync Task
 
 ```powershell
 $taskName = "NfsToS3-HybridPipeline"
 
-# Se il task esiste già, aggiorna le location:
+# If the task already exists, update the locations:
 aws datasync update-task `
   --task-arn arn:aws:datasync:eu-central-1:<AWS_ACCOUNT_ID>:task/<task-id> `
   --source-location-arn $SMB_SRC_LOC `
   --destination-location-arn $S3_DST_LOC
 
-# Altrimenti crealo nuovo:
+# Otherwise create a new one:
 $taskArn = aws datasync create-task `
   --source-location-arn $SMB_SRC_LOC `
   --destination-location-arn $S3_DST_LOC `
@@ -186,25 +187,25 @@ Write-Host "🆕  Task ARN: $taskArn"
 
 ---
 
-## 10. Esecuzione e Test End‑to‑End
+## 10. End-to-End Execution and Test
 
-1. Avvia manualmente (o attendi schedule):
+1. Start manually (or wait for schedule):
 
    ```powershell
    aws datasync start-task-execution --task-arn $taskArn
    ```
-2. Verifica in S3:
+2. Check in S3:
 
    ```powershell
    aws s3 ls s3://$bucket/ --recursive
    aws s3 ls s3://${bucket//input/output}/processed/ --recursive
    ```
-3. Verifica SQS:
+3. Check SQS:
 
    ```powershell
    aws sqs receive-message --queue-url <ImageProcessingQueueURL> --max-number-of-messages 1
    ```
-4. Verifica log:
+4. Check logs:
 
    ```powershell
    aws logs tail /aws/lambda/ImageS3DispatcherLambda --since 10m
@@ -213,7 +214,7 @@ Write-Host "🆕  Task ARN: $taskArn"
 
 ---
 
-## Diagramma di Flusso (Mermaid)
+## Flow Diagram (Mermaid)
 
 ```mermaid
 flowchart TD
@@ -290,4 +291,4 @@ flowchart TD
   linkStyle default stroke:#888,stroke-width:1.5px
 ```
 
-Se segui questi passaggi, avrai un flusso **Windows SMB → DataSync Agent → S3 → Lambda/ECS** completamente automatizzato, con la flessibilità di usare risorse nuove o esistenti 🚀
+If you follow these steps, you will have a fully automated **Windows SMB → DataSync Agent → S3 → Lambda/ECS** flow, with the flexibility to use new or existing resources 🚀
