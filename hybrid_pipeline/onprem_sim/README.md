@@ -217,33 +217,6 @@ Write-Host "🆕  Task ARN: $taskArn"
 
 ```mermaid
 flowchart TD
-  subgraph OnPrem [On-Prem Windows]
-    A[Genera immagini in C:\\onprem\\data]
-    B[SMB Share: \\HOSTNAME\\data]
-  end
-
-  subgraph DataSyncAgent [AWS DataSync Agent VM]
-    C[Location SMB] --> D[Task: Sync immagini]
-  end
-
-  subgraph AWS_Cloud [AWS Cloud]
-    D --> E[S3 Bucket: images-input-544547773663-eu-central-1]
-    E --> F[Lambda Dispatcher]
-    F --> G[Step Functions]
-    G --> H[ECS Grayscale]
-    H --> I[S3 Output & SQS]
-  end
-
-  style OnPrem fill:#f9f,stroke:#333,stroke-width:2px
-  style DataSyncAgent fill:#9ff,stroke:#333,stroke-width:2px
-  style AWS_Cloud fill:#ff9,stroke:#333,stroke-width:2px
-  classDef icons fill:none,stroke:none;
-  class A,B,C,D,E,F,G,H,I icons;
-  linkStyle default stroke:#888,stroke-width:1.5px
-```
-
-```mermaid
-flowchart TD
   %% On-Premises
   subgraph OnPrem [💻 On-Prem Windows]
     A1([🖼️ Producer immagini<br>C:\onprem\producer]) -->|Crea immagini| A2([📁 Cartella SMB<br>C:\onprem\data])
