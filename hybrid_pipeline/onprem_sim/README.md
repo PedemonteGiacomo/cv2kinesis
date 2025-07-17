@@ -218,42 +218,70 @@ Write-Host "🆕  Task ARN: $taskArn"
 ```mermaid
 flowchart TD
   %% On-Premises
-  subgraph OnPrem [💻 On-Prem Windows]
-    A1([🖼️ Producer immagini - C:\onprem\producer]) -->|Crea immagini| A2([📁 Cartella SMB - C:\onprem\data])
-    A2 -- "SMB Share" --> A3([🔗 \\HOSTNAME\data])
+  subgraph OnPrem [On-Premises]
+    ImgProd([Producer immagini C:\onprem\producer])
+    ImgFolder([Cartella SMB C:\onprem\data])
+    ImgShare([SMB Share \\HOSTNAME\data])
+    VideoProd([Producer webcam OnPrem])
+    ImgProd -- Crea immagini --> ImgFolder
+    ImgFolder -- SMB Share --> ImgShare
+    VideoProd -- Stream frame --> KinesisOnPrem
   end
 
-  %% DataSync Agent VM
-  subgraph DataSyncAgent [🖥️ DataSync Agent VM Hyper-V]
-    B1([⚙️ Configurazione Network - Virtual Switch])
-    B2([🟢 Agent Attivato - Activation Key])
-    B3([📦 Location SMB])
-    B4([🔄 Task DataSync - Schedulato o Manuale])
-    B1 --> B2
-    B2 --> B3
-    B3 -- "Legge da SMB" --> A3
-    B3 --> B4
+  %% DataSync Agent
+  subgraph DataSyncAgent [DataSync Agent VM]
+    DSAgent([DataSync Agent])
+    DSLoc([Location SMB])
+    DSTask([Task DataSync])
+    DSAgent -- Legge da SMB --> DSLoc
+    DSLoc -- Avvia task --> DSTask
+    DSTask -- Sync immagini --> S3Input
   end
 
-  %% AWS Cloud
-  subgraph AWS_Cloud [☁️ AWS Cloud]
-    C1([🪣 S3 Bucket - images-input])
-    C2([🧑‍💻 Lambda Dispatcher])
-    C3([🔁 Step Functions])
-    C4([🖥️ ECS Grayscale])
-    C5([🪣 S3 Output])
-    C6([📬 SQS Queue])
-    B4 -- "Sync immagini" --> C1
-    C1 -- "Trigger" --> C2
-    C2 --> C3
-    C3 --> C4
-    C4 -- "Output" --> C5
-    C5 -- "Notifica" --> C6
+  %% Cloud Ingress
+  subgraph CloudIngress [Cloud Ingress]
+    KinesisOnPrem([Kinesis Video Stream])
+    S3Input([S3 Bucket immagini input])
+    KinesisOnPrem -- Stream --> ECSYolo
   end
 
+  %% Image Pipeline Cloud
+  subgraph ImagePipeline [Image Processing Pipeline]
+    LambdaImg([Lambda Dispatcher])
+    StepFuncImg([Step Functions])
+    ECSGray([ECS Grayscale])
+    S3OutputImg([S3 Bucket immagini output])
+    SQSImg([SQS image-processing-results])
+    S3Input -- Event --> LambdaImg
+    LambdaImg -- Trigger --> StepFuncImg
+    StepFuncImg -- Run ECS --> ECSGray
+    ECSGray -- Processed --> S3OutputImg
+    ECSGray -- Metrics --> SQSImg
+  end
+
+  %% Video Pipeline Cloud
+  subgraph VideoPipeline [Video Processing Pipeline]
+    ECSYolo([ECS YOLO])
+    S3Frames([S3 Bucket video frames])
+    SQSVideo([SQS video-processing-results])
+    LB([Load Balancer])
+    ECSYolo -- Save frames --> S3Frames
+    ECSYolo -- Results --> SQSVideo
+    ECSYolo -- Expose API --> LB
+  end
+
+  %% Consumer
+  Consumer([Consumer])
+  SQSImg -- Notify --> Consumer
+  SQSVideo -- Notify --> Consumer
+
+  %% Stili
   style OnPrem fill:#f9f,stroke:#333,stroke-width:2px
   style DataSyncAgent fill:#9ff,stroke:#333,stroke-width:2px
-  style AWS_Cloud fill:#ff9,stroke:#333,stroke-width:2px
+  style CloudIngress fill:#e0e0ff,stroke:#333,stroke-width:2px
+  style ImagePipeline fill:#ff9,stroke:#333,stroke-width:2px
+  style VideoPipeline fill:#e6e6fa,stroke:#333,stroke-width:2px
+
   linkStyle default stroke:#888,stroke-width:1.5px
 ```
 
