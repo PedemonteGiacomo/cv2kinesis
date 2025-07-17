@@ -275,31 +275,6 @@ flowchart TD
     ECSYolo -- Expose API --> LB
   end
 
-  %% Image Pipeline Cloud
-  subgraph ImagePipeline [🖼️ Image Processing Pipeline]
-    LambdaImg([🧑‍💻 Lambda Dispatcher])
-    StepFuncImg([🔗 Step Functions])
-    ECSGray([🖥️ ECS Grayscale])
-    S3OutputImg([🪣 S3 Bucket immagini output])
-    SQSImg([📨 SQS image-processing-results])
-    S3Input -- Event --> LambdaImg
-    LambdaImg -- Trigger --> StepFuncImg
-    StepFuncImg -- Run ECS --> ECSGray
-    ECSGray -- Processed --> S3OutputImg
-    ECSGray -- Metrics --> SQSImg
-  end
-
-  %% Video Pipeline Cloud
-  subgraph VideoPipeline [🎥 Video Processing Pipeline]
-    ECSYolo([🖥️ ECS YOLO])
-    S3Frames([🪣 S3 Bucket video frames])
-    SQSVideo([📨 SQS video-processing-results])
-    LB([🌐 Load Balancer])
-    ECSYolo -- Save frames --> S3Frames
-    ECSYolo -- Results --> SQSVideo
-    ECSYolo -- Expose API --> LB
-  end
-
   %% Consumer
   Consumer([👁️ Consumer])
   SQSImg -- Notify --> Consumer
@@ -309,7 +284,6 @@ flowchart TD
   style OnPrem fill:#e3f6fc,stroke:#333,stroke-width:2px
   style RemoteClients fill:#f3e9ff,stroke:#333,stroke-width:2px
   style DataSyncAgent fill:#e0ffe0,stroke:#333,stroke-width:2px
-  style CloudIngress fill:#fffbe6,stroke:#333,stroke-width:2px
   style ImagePipeline fill:#fff0f5,stroke:#333,stroke-width:2px
   style VideoPipeline fill:#e6e6fa,stroke:#333,stroke-width:2px
 
