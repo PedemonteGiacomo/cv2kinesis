@@ -220,17 +220,17 @@ flowchart TD
 
   %% On-Premises
   subgraph OnPrem [💻 On-Premises]
-    ImgProd([🖼️ Producer immagini<br>C:\onprem\producer])
-    ImgFolder([📁 Cartella SMB<br>C:\onprem\data])
+    ImgProd([🖼️ Image Producer<br>C:\onprem\producer])
+    ImgFolder([📁 SMB Folder<br>C:\onprem\data])
     ImgShare([🔗 SMB Share<br>\\HOSTNAME\data])
-    ImgProd -- Crea immagini --> ImgFolder
+    ImgProd -- Create images --> ImgFolder
     ImgFolder -- SMB Share --> ImgShare
   end
 
   %% Remote Clients
   subgraph RemoteClients [🌍 Remote Clients]
-    ImgProdRemote([🖼️ Producer immagini remoto])
-    VideoProdRemote([🎥 Producer webcam remoto])
+    ImgProdRemote([🖼️ Remote image producer])
+    VideoProdRemote([🎥 Remote webcam producer])
     ImgProdRemote -- Upload --> S3Input
     VideoProdRemote -- Stream frame --> KinesisOnPrem
   end
@@ -238,22 +238,22 @@ flowchart TD
   %% DataSync Agent
   subgraph DataSyncAgent [🖥️ DataSync Agent VM]
     DSAgent([🤖 DataSync Agent])
-    DSLoc([📦 Location SMB])
-    DSTask([🔄 Task DataSync])
-    DSAgent -- Legge da SMB --> DSLoc
-    DSLoc -- Avvia task --> DSTask
-    DSTask -- Prende immagini --> ImgShare
-    DSTask -- Sync immagini --> S3Input
+    DSLoc([📦 SMB Location])
+    DSTask([🔄 DataSync Task])
+    DSAgent -- Reads from SMB --> DSLoc
+    DSLoc -- Start task --> DSTask
+    DSTask -- Get images --> ImgShare
+    DSTask -- Sync images --> S3Input
   end
 
 
   %% Image Pipeline Cloud
   subgraph ImagePipeline [🖼️ Image Processing Pipeline]
-    S3Input([🪣 S3 Bucket immagini input])
+    S3Input([🪣 S3 Bucket images input])
     LambdaImg([🧑‍💻 Lambda Dispatcher])
     StepFuncImg([🔗 Step Functions])
     ECSGray([🖥️ ECS Grayscale])
-    S3OutputImg([🪣 S3 Bucket immagini output])
+    S3OutputImg([🪣 S3 Bucket images output])
     SQSImg([📨 SQS image-processing-results])
     S3Input -- Event --> LambdaImg
     LambdaImg -- Trigger --> StepFuncImg
@@ -280,7 +280,7 @@ flowchart TD
   SQSImg -- Notify --> Consumer
   SQSVideo -- Notify --> Consumer
 
-  %% Stili
+  %% Styles
   style OnPrem fill:#e3f6fc,stroke:#333,stroke-width:2px
   style RemoteClients fill:#f3e9ff,stroke:#333,stroke-width:2px
   style DataSyncAgent fill:#e0ffe0,stroke:#333,stroke-width:2px
