@@ -235,6 +235,7 @@ flowchart TD
     DSTask([Task DataSync])
     DSAgent -- Legge da SMB --> DSLoc
     DSLoc -- Avvia task --> DSTask
+    DSTask -- Prende immagini --> ImgShare
     DSTask -- Sync immagini --> S3Input
   end
 
