@@ -242,4 +242,49 @@ flowchart TD
   linkStyle default stroke:#888,stroke-width:1.5px
 ```
 
+```mermaid
+flowchart TD
+  %% On-Premises
+  subgraph OnPrem [💻 On-Prem Windows]
+    A1([🖼️ Producer immagini<br>C:\onprem\producer]) -->|Crea immagini| A2([📁 Cartella SMB<br>C:\onprem\data])
+    A2 -- "SMB Share" --> A3([🔗 \\HOSTNAME\data])
+  end
+
+  %% DataSync Agent VM
+  subgraph DataSyncAgent [🖥️ DataSync Agent VM (Hyper-V)]
+    B1([⚙️ Configurazione Network<br>Virtual Switch Hyper-V])
+    B2([🟢 Agent Attivato<br>Activation Key])
+    B3([📦 Location SMB])
+    B4([🔄 Task DataSync<br>Schedulato/Manuale])
+    B1 --> B2
+    B2 --> B3
+    B3 -- "Legge da SMB" --> A3
+    B3 --> B4
+  end
+
+  %% AWS Cloud
+  subgraph AWS_Cloud [☁️ AWS Cloud]
+    C1([🪣 S3 Bucket<br>images-input-...])
+    C2([🧑‍💻 Lambda Dispatcher])
+    C3([🔁 Step Functions])
+    C4([🖥️ ECS Grayscale])
+    C5([🪣 S3 Output])
+    C6([📬 SQS Queue])
+    B4 -- "Sync immagini" --> C1
+    C1 -- "Trigger" --> C2
+    C2 --> C3
+    C3 --> C4
+    C4 -- "Output" --> C5
+    C5 -- "Notifica" --> C6
+  end
+
+  %% Stili
+  style OnPrem fill:#f9f,stroke:#333,stroke-width:2px
+  style DataSyncAgent fill:#9ff,stroke:#333,stroke-width:2px
+  style AWS_Cloud fill:#ff9,stroke:#333,stroke-width:2px
+  classDef icons fill:none,stroke:none;
+  class A1,A2,A3,B1,B2,B3,B4,C1,C2,C3,C4,C5,C6 icons;
+  linkStyle default stroke:#888,stroke-width:1.5px
+```
+
 Se segui questi passaggi, avrai un flusso **Windows SMB → DataSync Agent → S3 → Lambda/ECS** completamente automatizzato, con la flessibilità di usare risorse nuove o esistenti 🚀
