@@ -1,38 +1,29 @@
-Kinase Wave‑0 prototype – DICOM lung segmentation
--------------------------------------------------
-Run this single script in two modes:
+Kinase Wave‑0 prototype – DICOM lung segmentation (v2)
+=====================================================
+Adds **validation split, BCE+Dice loss, early‑stopping, best‑model save** and
+optional **learning‑curve plots** (loss + Dice) to the original script.
 
-1. **Training**
+Run modes
+---------
+* **Training**
+  ```bash
+  python kinase_wave0.py train --data-dir data/stage_2_train_images --mask-dir rsna-masks --epochs 50 --batch-size 4 --lr 1e-4 --val-split 0.2 --patience 3 --plot
+  ```
+* **Inference**
    ```bash
-   python kinase_wave0.py train \
-       --data-dir ./rsna-dicom \
-       --mask-dir ./rsna-masks \
-       --epochs 10 \
-       --lr 1e-4 \
-       --batch-size 4 \
-       --model-out model.pth
-   ```
-   *Assumes you have extracted the RSNA Pneumonia Challenge dataset and
-   generated corresponding binary lung‑mask PNGs (1 for foreground, 0 for
-   background) in `--mask-dir` with the **same file name** as the source
-   DICOM but `.png` extension.*
-
-2. **Inference**
-   ```bash
-   python kinase_wave0.py infer \
-       --dcm-path sample.dcm \
-       --model-path model.pth \
-       --out-dcm sample_overlay.dcm
+    $sample = (Get-ChildItem data\stage_2_train_images | Select-Object -First 1).Name
+    python kinase_wave0.py infer `
+        --dcm-path data\stage_2_train_images\$sample `
+        --model-path model.pth `
+        --out-dcm demo_overlay.dcm
    ```
 
-The script reads a DICOM, produces a segmentation mask with a lightweight
-U‑Net, blends it onto the original image (red overlay), and writes a new
-**Secondary Capture RGB DICOM** retaining all key metadata.
+Dependencies (additions)
+------------------------
+- matplotlib>=3.5  → for plots
+- pandas, opencv-python (only for build_masks.py)
 
-Dependencies
-------------
-- torch
-- torchvision
-- pydicom
-- numpy, pillow, tqdm
-Install with `pip install torch torchvision pydicom pillow tqdm`.
+Install all:
+```bash
+pip install -m requirements.txt
+```

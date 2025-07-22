@@ -4,3 +4,4 @@ pydicom
 numpy
 pillow
 tqdm
+matplotlib

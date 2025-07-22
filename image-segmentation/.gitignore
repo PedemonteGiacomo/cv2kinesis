@@ -3,3 +3,5 @@ kaggle.json
 /data/stage_2_test_images/*
 # nascondere data/stage_2_train_images
 /data/stage_2_train_images/*
+# nascondere rsna-masks
+/rsna-masks/*
