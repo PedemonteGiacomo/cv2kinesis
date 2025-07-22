@@ -1,0 +1,6 @@
+pydicom>=2.4.0
+numpy
+scipy
+opencv-python-headless
+matplotlib
+tqdm
