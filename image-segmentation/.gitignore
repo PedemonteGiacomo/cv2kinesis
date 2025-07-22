@@ -1,0 +1,5 @@
+kaggle.json
+# nascondere data/stage_2_test_images ma lasciando la cartella visbile, solo i file nascosti
+/data/stage_2_test_images/*
+# nascondere data/stage_2_train_images
+/data/stage_2_train_images/*
