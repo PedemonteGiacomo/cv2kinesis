@@ -1,7 +1,7 @@
 """Processing algorithms for RSNA pipeline."""
 
-from .base import Processor
-from .edge_morph import EdgeMorph
 from .threshold_ccl import ThresholdCCL
+from .edge_morph import EdgeMorph
+from .otsu_border import OtsuBorder
 
-__all__ = ["Processor", "EdgeMorph", "ThresholdCCL"]
+__all__ = ["ThresholdCCL", "EdgeMorph", "OtsuBorder"]

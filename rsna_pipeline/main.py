@@ -1,7 +1,6 @@
-"""Command line interface and simple queue consumer for RSNA pipeline."""
+"""Command line interface and queue consumer for the RSNA pipeline."""
 
 from __future__ import annotations
-
 
 import argparse
 import json
@@ -10,9 +9,10 @@ from pathlib import Path
 import cv2
 from tqdm import tqdm
 
+import processing  # noqa: F401 - ensure algorithms are registered
+from processing.base import Processor
 from utils.dicom_io import load_dicom
 from utils.viz import overlay_mask
-from processing.base import Processor
 
 
 def process_single(dicom_path: Path, algo_id: str, out_dir: Path) -> None:
@@ -35,7 +35,9 @@ def main() -> None:
     group.add_argument("--dicom")
     group.add_argument("--folder")
     ap.add_argument(
-        "--algo", default="processing_1", help="processing_1 | processing_2 | ..."
+        "--algo",
+        default="processing_1",
+        help="processing_1 | processing_2 | processing_3",
     )
     ap.add_argument("--out", default="output")
     args = ap.parse_args()

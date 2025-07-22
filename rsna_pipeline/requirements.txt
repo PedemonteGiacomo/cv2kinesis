@@ -3,4 +3,5 @@ numpy
 scipy
 opencv-python-headless
 matplotlib
+scikit-image
 tqdm
