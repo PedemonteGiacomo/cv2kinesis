@@ -113,7 +113,7 @@ def run_processor(processor_name, img):
     proc_class = getattr(module, class_name)
     # Parametri ottimali per overlay
     if processor_name == "ThresholdCCL":
-        proc = proc_class(threshold=160, min_area_px=20000, side="left")
+        proc = proc_class(threshold=160, open_k=5, close_k=8, max_cx=0.53)
     elif processor_name == "OtsuBorder":
         proc = proc_class(sigma=1.5, min_size_px=20000, closing_radius=7)
     elif processor_name == "EdgeMorph":
