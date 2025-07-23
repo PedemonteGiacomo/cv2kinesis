@@ -51,7 +51,7 @@ def main() -> None:
     ap.add_argument(
         "--algo",
         default="processing_1",
-        help="processing_1 | processing_2 | processing_3",
+        help="processing_1 | processing_2 | processing_3 | processing_4",
     )
     ap.add_argument("--out", default="output")
     args = ap.parse_args()

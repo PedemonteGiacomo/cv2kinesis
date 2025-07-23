@@ -21,7 +21,10 @@ class ThresholdCCL(Processor):
 
     def run(self, img: np.ndarray, meta: dict | None = None) -> dict:
         """Return mask and labels of connected components."""
-        smoothed = ndi.gaussian_filter(img, self.sigma)
+
+        img_win = np.clip(img, 0, 150)     # window fegato
+        img8    = ((img_win - 0) / 150 * 255).astype(np.uint8)
+        smoothed = ndi.gaussian_filter(img8, 1.5)
 
         if self.threshold is None:
             _, mask = cv2.threshold(
