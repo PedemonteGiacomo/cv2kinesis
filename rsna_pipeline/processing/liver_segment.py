@@ -47,13 +47,15 @@ class LiverSegment(Processor):
             cx = (s[cv2.CC_STAT_LEFT] + s[cv2.CC_STAT_WIDTH] / 2) / w
             cy = (s[cv2.CC_STAT_TOP]  + s[cv2.CC_STAT_HEIGHT] / 2) / h
             # lato sinistro nell'immagine (radiological view) → cx < 0.45
-            if cx > 0.45 or cy > 0.6:
+            print("DEBUG cx,cy:", cx, cy)
+            if not (0.40 < cx < 0.60) or cy > 0.70:
                 continue
 
             cand.append((i, area))
         if not cand:
-            print("DEBUG componenti trovate:", [(i, s[cv2.CC_STAT_AREA]) for i,s in enumerate(stats[1:],1)])
-            return None
+            # prendi cmq il blob interno più grande
+            cand = [(np.argmax(stats[1:, cv2.CC_STAT_AREA]) + 1,
+                    stats[1:, cv2.CC_STAT_AREA].max())]
         cand.sort(key=lambda x: x[1], reverse=True)
         return cand[0][0]
 
