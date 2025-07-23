@@ -1,34 +1,36 @@
+# test_liver_series.py
 from pathlib import Path
-import numpy as np, cv2, pydicom, tqdm
-from processing.liver_segment import LiverSegment
-from utils.viz import overlay_mask
+import numpy as np, cv2, tqdm
+from processing.liver_parenchyma import LiverParenchyma
 from utils.dicom_io import load_dicom
+from utils.viz import overlay_mask
 
-series_dir = Path(r"data/liver/abdomen-lesion-dataset-phantomx/phantomx_abdomen_lesion_dataset/D53-03/40/6_120_40_BODY-SHARP_AICE_170641.498")  # cambia path
+series_dir = Path(r"data/liver/abdomen-lesion-dataset-phantomx/phantomx_abdomen_lesion_dataset/D53-03/40/6_120_40_BODY-SHARP_AICE_170641.498")
+
 dcm_files = sorted(series_dir.glob("*.dcm"))
-vol = []
-for fp in tqdm.tqdm(dcm_files, desc="Load"):
-    vol.append(load_dicom(fp)[0])
-vol = np.stack(vol)      # shape (Z,H,W)
+vol = np.stack([load_dicom(fp)[0] for fp in tqdm.tqdm(dcm_files, "Load")])
 
-proc = LiverSegment(
-        wl=60, ww=500,      # finestra leggermente più ampia
-        erode_iter=2,       # stacca bene il fegato
-        min_vol_px=50000,   # ignora blob piccoli
-        se2d=7)             # closing più forte
-res = proc.run(vol)
+proc = LiverParenchyma(grow_tol=30)        # prova a 20‑30 se troppo “magro/grasso”
+res  = proc.run(vol)
+mask = res["mask"]
 print("META:", res["meta"])
-mask3d = res["mask"]
 
-# mostra solo le slice dove la mask ha pixel > 0
-idx_with_mask = np.where(mask3d.any(axis=(1,2)))[0]
-print(f"Slice con maschera: {idx_with_mask[:10]} ...")
+# viewer basico: frecce ←/→ per scorrere
+idx = np.where(mask.any(axis=(1,2)))[0]
+if len(idx) == 0:
+    print("Nessuna slice con fegato!")
+    quit()
 
-for idx in idx_with_mask:
-    ov = overlay_mask(vol[idx], mask3d[idx])
-    cv2.imshow(f"slice {idx}", ov)
-    if cv2.waitKey(0) == 27:   # ESC per uscire
+cur = 0
+while True:
+    z = idx[cur]
+    ov = overlay_mask(vol[z], mask[z])
+    cv2.imshow("Liver overlay (← / → / ESC)", ov)
+    k = cv2.waitKey(0)
+    if k in (27, ord('q')):          # ESC
         break
+    elif k == 81 and cur > 0:        # ←
+        cur -= 1
+    elif k == 83 and cur < len(idx)-1:  # →
+        cur += 1
 cv2.destroyAllWindows()
-
-print("meta:", res["meta"])

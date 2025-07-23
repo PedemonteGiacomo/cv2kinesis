@@ -4,6 +4,7 @@ from .threshold_ccl import ThresholdCCL
 from .edge_morph import EdgeMorph
 from .otsu_border import OtsuBorder
 from .lung_mask import LungMask
-from .liver_segment import LiverSegment
+from .liver_parenchyma import LiverParenchyma
+from .liver_cc_simple import LiverCCSimple
 
-__all__ = ["ThresholdCCL", "EdgeMorph", "OtsuBorder", "LungMask", "LiverSegment"]
+__all__ = ["ThresholdCCL", "EdgeMorph", "OtsuBorder", "LungMask", "LiverParenchyma", "LiverCCSimple"]
