@@ -14,10 +14,10 @@ The command line interface lets you run any algorithm on a single file or on a f
 
 ```bash
 # single DICOM
-python main.py --dicom data/ID_0000.dcm --algo processing_1
+python main.py --dicom data/stage_2_test_images/0000a175-0e68-4ca4-b1af-167204a7e0bc.dcm --algo processing_1
 
 # batch mode on a folder
-python main.py --folder data/rsna_train --algo processing_3 --out results
+python main.py --folder data/stage_2_test_images --algo processing_3 --out results
 ```
 
 Each run saves an overlay image (`*_overlay.png`) and a JSON file with processing metadata under the output directory.

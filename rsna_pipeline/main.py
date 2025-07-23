@@ -17,6 +17,19 @@ from utils.viz import overlay_mask
 
 def process_single(dicom_path: Path, algo_id: str, out_dir: Path) -> None:
     """Process a single DICOM file and save overlay and metadata."""
+    import numpy as np
+    def to_serializable(obj):
+        if isinstance(obj, dict):
+            return {k: to_serializable(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [to_serializable(v) for v in obj]
+        elif isinstance(obj, np.generic):
+            return obj.item()
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        else:
+            return obj
+
     img, meta = load_dicom(dicom_path)
     processor = Processor.factory(algo_id)
     result = processor.run(img, meta)
@@ -24,8 +37,9 @@ def process_single(dicom_path: Path, algo_id: str, out_dir: Path) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     overlay = overlay_mask(img, mask)
     cv2.imwrite(str(out_dir / f"{dicom_path.stem}_overlay.png"), overlay)
+    meta_serializable = to_serializable(result["meta"])
     with open(out_dir / f"{dicom_path.stem}_meta.json", "w") as f:
-        json.dump(result["meta"], f, indent=2)
+        json.dump(meta_serializable, f, indent=2)
 
 
 def main() -> None:
