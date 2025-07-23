@@ -82,17 +82,26 @@ class EdgeMorph(Processor):
         k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,
                                       (self.close_k, self.close_k))
         mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, k, iterations=2)
+        from utils.liver_select import pick_liver_component
+        from utils.morpho import postprocess_mask
 
-        # 7. etichette finali
-        labels, n = ndi.label(mask)
-
+        mask = postprocess_mask(mask.astype(bool), close_r=3, dims=2)
+        lbl, num = ndi.label(mask)
+        best = pick_liver_component(lbl, img.shape, min_area=20_000, side="left")
+        if best is None:
+            return {
+                "mask": np.zeros_like(img, np.uint8),
+                "labels": lbl.astype(np.int32),
+                "meta": {"msg": "liver not found"}
+            }
+        mask = (lbl == best).astype(np.uint8)
         return {
-            "mask": mask.astype(np.uint8),
-            "labels": labels.astype(np.int32),
+            "mask": mask,
+            "labels": lbl.astype(np.int32),
             "meta": {
                 "otsu_thr_start": int(threshold_otsu(inv)),
                 "thr_final": int(thr),
                 "iterations": i,
-                "num_components": int(n),
+                "num_components": lbl.max(),
             },
         }

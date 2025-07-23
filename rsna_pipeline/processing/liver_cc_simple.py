@@ -60,53 +60,26 @@ class LiverCCSimple(Processor):
         struc = generate_binary_structure(2, 1)
         mask = binary_opening(mask, structure=struc, iterations=1)
 
-        # 6) Connected‑components
+        from utils.liver_select import pick_liver_component
+        from utils.morpho import postprocess_mask
+
+        mask = postprocess_mask(mask.astype(bool), close_r=self.close_k, dims=2)
         lbl, num = ndi.label(mask)
-        if num == 0:
+        best = pick_liver_component(lbl, img.shape, min_area=self.min_area, side=self.side)
+        if best is None:
             return {
                 "mask": np.zeros_like(img, np.uint8),
-                "labels": np.zeros_like(img, int),
-                "meta": {"msg": "no components"},
-            }
-
-        # 7) scegli la componente “feasible” (posizione + area)
-        h, w = img.shape
-        best_lab, best_area = None, 0
-        for lab in range(1, num + 1):
-            area = (lbl == lab).sum()
-            if area < self.min_area:
-                continue
-
-            ys, xs = np.where(lbl == lab)
-            cx, cy = xs.mean() / w, ys.mean() / h
-
-            # heuristics: esclude milza / parete / intestino
-            if self.side == "left" and cx > 0.55:
-                continue
-            if self.side == "right" and cx < 0.45:
-                continue
-            if cy > 0.70:
-                continue
-
-            if area > best_area:
-                best_lab, best_area = lab, area
-
-        if best_lab is None:
-            return {
-                "mask": np.zeros_like(img, np.uint8),
-                "labels": np.zeros_like(img, int),
+                "labels": lbl.astype(np.int32),
                 "meta": {"msg": "liver not found"},
             }
-
-        liver_mask = (lbl == best_lab).astype(np.uint8)
-
+        liver_mask = (lbl == best).astype(np.uint8)
         return {
             "mask": liver_mask,
             "labels": lbl.astype(np.int32),
             "meta": {
                 "thr": self.thr,
-                "area_px": int(best_area),
-                "label_id": int(best_lab),
-                "components": int(num),
+                "area_px": int((lbl == best).sum()),
+                "label_id": int(best),
+                "components": lbl.max(),
             },
         }

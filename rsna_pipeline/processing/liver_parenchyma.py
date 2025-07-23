@@ -83,16 +83,25 @@ class LiverParenchyma(Processor):
                     "meta": {"msg": "liver not found"}}
 
         # 4) post‑processing morfologico
-        liver_mask = binary_closing(liver_mask, ball(self.close_r))
-        liver_mask = binary_erosion(liver_mask, ball(1))
+        from utils.liver_select import pick_liver_component
+        from utils.morpho import postprocess_mask
 
-        labels, num = ndi.label(liver_mask)
+        liver_mask = postprocess_mask(liver_mask.astype(bool), close_r=self.close_r, dims=3)
+        lbl, num = ndi.label(liver_mask)
+        best = pick_liver_component(lbl, vol.shape[1:], min_area=self.min_liver_px, side="left")
+        if best is None:
+            return {
+                "mask": np.zeros_like(vol, np.uint8),
+                "labels": lbl.astype(np.int32),
+                "meta": {"msg": "liver not found"}
+            }
+        liver_mask = (lbl == best).astype(np.uint8)
         return {
-            "mask": liver_mask.astype(np.uint8),
-            "labels": labels.astype(np.int32),
+            "mask": liver_mask,
+            "labels": lbl.astype(np.int32),
             "meta": {
                 "seed": tuple(int(i) for i in seed_idx),
                 "grow_tol": self.grow_tol,
-                "components": int(num)
+                "components": lbl.max()
             }
         }

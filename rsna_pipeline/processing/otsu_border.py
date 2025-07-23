@@ -34,17 +34,27 @@ class OtsuBorder(Processor):
         mask = clear_border(mask)
         mask = remove_small_objects(mask, min_size=self.min_size)
         mask = binary_closing(mask, footprint=disk(self.radius))
+        from utils.liver_select import pick_liver_component
+        from utils.morpho import postprocess_mask
 
-        labels, num = ndi.label(mask)
-
+        mask = postprocess_mask(mask.astype(bool), close_r=3, dims=2)
+        lbl, num = ndi.label(mask)
+        best = pick_liver_component(lbl, img.shape, min_area=20_000, side="left")
+        if best is None:
+            return {
+                "mask": np.zeros_like(img, np.uint8),
+                "labels": lbl.astype(np.int32),
+                "meta": {"msg": "liver not found"}
+            }
+        mask = (lbl == best).astype(np.uint8)
         return {
-            "mask": mask.astype(np.uint8),
-            "labels": labels.astype(np.int32),
+            "mask": mask,
+            "labels": lbl.astype(np.int32),
             "meta": {
                 "sigma": self.sigma,
                 "otsu_thr": float(thr),
                 "min_size": self.min_size,
                 "closing_r": self.radius,
-                "components": num,
+                "components": lbl.max(),
             },
         }

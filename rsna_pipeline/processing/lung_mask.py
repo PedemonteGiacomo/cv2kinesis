@@ -37,7 +37,22 @@ class LungMask(Processor):
         if mask.shape != img.shape:
             mask = cv2.resize(mask, (img.shape[1], img.shape[0]), interpolation=cv2.INTER_NEAREST)
 
-        lbl, _ = ndi.label(mask)
-        return {"mask": mask, "labels": lbl.astype(np.int32),
-                "meta": {"air_thr": self.air_thr,
-                         "components": int(lbl.max())}}
+        from utils.liver_select import pick_liver_component
+        from utils.morpho import postprocess_mask
+
+        mask = postprocess_mask(mask.astype(bool), close_r=3, dims=2)
+        lbl, num = ndi.label(mask)
+        best = pick_liver_component(lbl, img.shape, min_area=20_000, side="left")
+        if best is None:
+            return {
+                "mask": np.zeros_like(img, np.uint8),
+                "labels": lbl.astype(np.int32),
+                "meta": {"msg": "liver not found"}
+            }
+        mask = (lbl == best).astype(np.uint8)
+        return {
+            "mask": mask,
+            "labels": lbl.astype(np.int32),
+            "meta": {"air_thr": self.air_thr,
+                     "components": lbl.max()}
+        }
