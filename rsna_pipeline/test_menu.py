@@ -10,10 +10,10 @@ import pydicom
 
 PROCESSORS = {
     "ThresholdCCL": "processing.threshold_ccl.ThresholdCCL",
-    "OtsuBorder": "processing.otsu_border.OtsuBorder",
-    "EdgeMorph": "processing.edge_morph.EdgeMorph",
-    "LungMask": "processing.lung_mask.LungMask",
-    "LiverParenchyma": "processing.liver_parenchyma.LiverParenchyma",
+    # "OtsuBorder": "processing.otsu_border.OtsuBorder",
+    # "EdgeMorph": "processing.edge_morph.EdgeMorph",
+    # "LungMask": "processing.lung_mask.LungMask",
+    # "LiverParenchyma": "processing.liver_parenchyma.LiverParenchyma",
     "LiverCCSimple": "processing.liver_cc_simple.LiverCCSimple",
 }
 
