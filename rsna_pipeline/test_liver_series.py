@@ -11,16 +11,24 @@ for fp in tqdm.tqdm(dcm_files, desc="Load"):
     vol.append(load_dicom(fp)[0])
 vol = np.stack(vol)      # shape (Z,H,W)
 
-proc = LiverSegment(wl=50, ww=400, erode_iter=1, min_vol_px=20000)    # tweak params here
+proc = LiverSegment(
+        wl=60, ww=500,      # finestra leggermente più ampia
+        erode_iter=2,       # stacca bene il fegato
+        min_vol_px=50000,   # ignora blob piccoli
+        se2d=7)             # closing più forte
 res = proc.run(vol)
 print("META:", res["meta"])
 mask3d = res["mask"]
 
-# salviamo overlay su 5 slice centrali
-mid = len(vol)//2
-for i, idx in enumerate(range(mid-2, mid+3)):
+# mostra solo le slice dove la mask ha pixel > 0
+idx_with_mask = np.where(mask3d.any(axis=(1,2)))[0]
+print(f"Slice con maschera: {idx_with_mask[:10]} ...")
+
+for idx in idx_with_mask:
     ov = overlay_mask(vol[idx], mask3d[idx])
     cv2.imshow(f"slice {idx}", ov)
-    cv2.waitKey(0)   # premi un tasto per passare al successivo
+    if cv2.waitKey(0) == 27:   # ESC per uscire
+        break
 cv2.destroyAllWindows()
+
 print("meta:", res["meta"])
