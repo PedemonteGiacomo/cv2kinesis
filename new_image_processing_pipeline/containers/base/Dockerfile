@@ -34,5 +34,5 @@ RUN pip install --no-cache-dir -r requirements.txt -e ./src requests boto3
 # Entrypoint                                                                    #
 # -----------------------------------------------------------------------------#
 COPY containers/base/worker.sh /app/worker.sh
-RUN chmod +x /app/worker.sh
+RUN sed -i 's/\r$//' /app/worker.sh && chmod +x /app/worker.sh
 ENTRYPOINT ["/app/worker.sh"]
