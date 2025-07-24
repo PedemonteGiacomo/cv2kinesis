@@ -1,12 +1,10 @@
 # processing/liver_cc_simple.py          ALGO_ID = "processing_6"
 from __future__ import annotations
-import numpy as np, cv2, scipy.ndimage as ndi
+
+import numpy as np
+import scipy.ndimage as ndi
 from skimage.morphology import binary_closing, disk
-from scipy.ndimage import (
-    binary_fill_holes,
-    binary_opening,
-    generate_binary_structure,
-)
+from scipy.ndimage import binary_fill_holes, binary_opening, generate_binary_structure
 
 from .base import Processor
 
@@ -27,11 +25,11 @@ class LiverCCSimple(Processor):
 
     def __init__(
         self,
-        thr: int = 110,          # soglia HU
-        median_k: int = 9,       # kernel mediana (px)
-        close_k: int = 7,        # raggio closing
+        thr: int = 110,  # soglia HU
+        median_k: int = 9,  # kernel mediana (px)
+        close_k: int = 7,  # raggio closing
         min_area_px: int = 20_000,
-        side: str = "left",      # 'left' (radiological) o 'right'
+        side: str = "left",  # 'left' (radiological) o 'right'
     ):
         self.thr = thr
         self.med_k = median_k
@@ -41,8 +39,25 @@ class LiverCCSimple(Processor):
 
     # -------------- main --------------
     def run(self, img: np.ndarray, meta: dict | None = None) -> dict:
-        if img.ndim != 2:
-            raise ValueError("Questa versione semplice gestisce solo slice 2‑D.")
+        if img.ndim == 2:  # --- slice 2‑D ---
+            return self._run_2d(img, meta)
+        elif img.ndim == 3:  # --- serie 3‑D ---
+            masks, slice_meta = [], []
+            for z in range(img.shape[0]):
+                r = self._run_2d(img[z])
+                masks.append(r["mask"])
+                slice_meta.append(r["meta"])
+            return {
+                "mask": np.stack(masks, axis=0),
+                "labels": None,
+                "meta": {"series": slice_meta, "algo": self.ALGO_ID},
+            }
+        else:
+            raise ValueError("Input deve essere 2‑D (H,W) o 3‑D (Z,H,W).")
+
+    # ---------- logica originale (leggermente refactor) ----------
+    def _run_2d(self, img2d: np.ndarray, meta: dict | None = None) -> dict:
+        img = img2d
 
         # 1) median filter
         smooth = ndi.median_filter(img, size=self.med_k)
@@ -65,7 +80,9 @@ class LiverCCSimple(Processor):
 
         mask = postprocess_mask(mask.astype(bool), close_r=self.close_k, dims=2)
         lbl, num = ndi.label(mask)
-        best = pick_liver_component(lbl, img.shape, min_area=self.min_area, side=self.side)
+        best = pick_liver_component(
+            lbl, img.shape, min_area=self.min_area, side=self.side
+        )
         if best is None:
             return {
                 "mask": np.zeros_like(img, np.uint8),
