@@ -1,22 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-################################################################################
-# Impostazioni AWS
-# ─────────────────
-# • In locale (LocalStack) esporta AWS_ENDPOINT_URL=http://host.docker.internal:4566
-#   e credenziali fittizie (AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY).
-# • Su AWS vero lascia AWS_ENDPOINT_URL vuota: i client useranno l’endpoint
-#   standard e le credenziali IAM fornite da Fargate.
-################################################################################
-
-# ------------------------------------------------------------------
-#  Forza la modalità "dummy credenziali" per LocalStack
-# ------------------------------------------------------------------
-export AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-dummy}
-export AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-dummy}
-unset AWS_SESSION_TOKEN AWS_SECURITY_TOKEN
-
 # opzionale: se è settata, la passiamo a tutti i comandi `aws`
 ENDP_OPT=""
 if [[ -n "${AWS_ENDPOINT_URL:-}" ]]; then
