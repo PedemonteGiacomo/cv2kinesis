@@ -4,6 +4,7 @@ import argparse
 import tempfile
 from pathlib import Path
 import zipfile
+import os
 
 import boto3
 import numpy as np
@@ -35,7 +36,10 @@ def load_series(folder: Path):
 
 def main() -> None:
     args = parse()
-    s3 = boto3.client("s3")
+    endpoint = os.getenv("AWS_ENDPOINT_URL")
+    s3 = boto3.client("s3", endpoint_url=endpoint)
+    sqs = boto3.client("sqs", endpoint_url=endpoint)
+
     with tempfile.TemporaryDirectory() as tmp:
         local = Path(tmp) / Path(args.key).name
         s3.download_file(args.s3_input, args.key, str(local))

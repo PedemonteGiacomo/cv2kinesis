@@ -6,7 +6,11 @@ from urllib.parse import quote_plus
 BUCKET = os.environ["PACS_BUCKET"]
 s3 = boto3.client("s3")
 
-app = FastAPI(title="PACS‑API", version="0.1")
+app = FastAPI(title="PACS-API", version="0.1")
+
+@app.get("/")
+def root():
+    return {"status": "ok"}
 
 regex_uid = re.compile(r"^[0-9.]+$")           # ultrasemplice, basta per demo
 
