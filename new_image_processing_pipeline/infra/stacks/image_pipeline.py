@@ -6,6 +6,7 @@ from aws_cdk import (
     aws_sqs as sqs,
     aws_ec2 as ec2,
     aws_ecs as ecs,
+    aws_applicationautoscaling as appscaling,
     aws_logs as logs,
 )
 from constructs import Construct
@@ -82,5 +83,5 @@ class ImagePipeline(Stack):
                 f"Scale{algo}",
                 metric=request_q.metric_approximate_number_of_messages_visible(),
                 scaling_steps=[{"upper": 0, "change": -1}, {"lower": 1, "change": 1}],
-                adjustment_type=ecs.AdjustmentType.CHANGE_IN_CAPACITY,
+                adjustment_type=appscaling.AdjustmentType.CHANGE_IN_CAPACITY,
             )
