@@ -12,8 +12,7 @@ app = FastAPI(title="PACS-API", version="0.1")
 def root():
     return {"status": "ok"}
 
-regex_uid = re.compile(r"^[0-9.]+$")           # ultrasemplice, basta per demo
-
+regex_uid = re.compile(r"^[A-Za-z0-9.\-]+$")  # include lettere & '-'
 
 def _signed(key: str, exp: int = 900):
     return s3.generate_presigned_url(
