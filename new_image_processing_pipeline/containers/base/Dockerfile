@@ -11,7 +11,7 @@ ENV PYTHONUNBUFFERED=1 \
 #   • jq          : usato da worker.sh                                          #
 # -----------------------------------------------------------------------------#
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        curl unzip jq && \
+        bash curl unzip jq && \
     rm -rf /var/lib/apt/lists/*
 
 # -----------------------------------------------------------------------------#
@@ -34,4 +34,5 @@ RUN pip install --no-cache-dir -r requirements.txt -e ./src requests boto3
 # Entrypoint                                                                    #
 # -----------------------------------------------------------------------------#
 COPY containers/base/worker.sh /app/worker.sh
+RUN chmod +x /app/worker.sh
 ENTRYPOINT ["/app/worker.sh"]

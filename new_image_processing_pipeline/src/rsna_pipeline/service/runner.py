@@ -14,10 +14,10 @@ import numpy as np
 import pydicom
 import requests
 
-import processing  # noqa: F401
-from processing.base import Processor
-from utils.dicom_io import load_dicom
-from utils.dicom_writer import save_secondary_capture
+import medical_image_processing.processing  # registra gli algoritmi
+from medical_image_processing.processing.base import Processor
+from medical_image_processing.utils.dicom_io import load_dicom
+from medical_image_processing.utils.dicom_writer import save_secondary_capture
 
 
 def parse() -> argparse.Namespace:
