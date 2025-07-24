@@ -1,4 +1,4 @@
-from aws_cdk import App, aws_s3 as s3
+from aws_cdk import App, aws_s3 as s3, aws_ecs as ecs
 from stacks.pacs_api_stack import PacsApiStack
 from stacks.image_pipeline import ImagePipeline
 
