@@ -1,4 +1,4 @@
-﻿{
+{
   "job_id": "506caa56-9f83-4115-b19a-3abd3a23d84b",
   "algo_id": "processing_6",
   "pacs": {
@@ -9,3 +9,6 @@
   },
   "callback": { "queue_url": "http://sqs.us-east-1.localhost.localstack.cloud:4566/000000000000/ImgRes.fifo" }
 }
+
+
+

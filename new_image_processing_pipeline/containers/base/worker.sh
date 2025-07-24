@@ -10,6 +10,13 @@ set -euo pipefail
 #   standard e le credenziali IAM fornite da Fargate.
 ################################################################################
 
+# ------------------------------------------------------------------
+#  Forza la modalità "dummy credenziali" per LocalStack
+# ------------------------------------------------------------------
+export AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-dummy}
+export AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-dummy}
+unset AWS_SESSION_TOKEN AWS_SECURITY_TOKEN
+
 # opzionale: se è settata, la passiamo a tutti i comandi `aws`
 ENDP_OPT=""
 if [[ -n "${AWS_ENDPOINT_URL:-}" ]]; then
