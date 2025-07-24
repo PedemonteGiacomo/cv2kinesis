@@ -17,9 +17,7 @@ class PacsApiStack(Stack):
 
         cluster = ecs.Cluster(self, "PacsCluster", vpc=vpc)
 
-        img = ecs.ContainerImage.from_asset(
-            path=pathlib.Path(__file__).parent.parent.parent / "pacs_api"
-        )
+        img = ecs.ContainerImage.from_asset("../pacs_api")   # path relativo alla cartella infra/stacks
 
         svc = patterns.ApplicationLoadBalancedFargateService(
             self,
