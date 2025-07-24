@@ -75,8 +75,8 @@ class LiverCCSimple(Processor):
         struc = generate_binary_structure(2, 1)
         mask = binary_opening(mask, structure=struc, iterations=1)
 
-        from utils.liver_select import pick_liver_component
-        from utils.morpho import postprocess_mask
+        from medical_image_processing.utils.liver_select import pick_liver_component
+        from medical_image_processing.utils.morpho import postprocess_mask
 
         mask = postprocess_mask(mask.astype(bool), close_r=self.close_k, dims=2)
         lbl, num = ndi.label(mask)

@@ -12,7 +12,7 @@ from skimage.morphology import (
 )
 from scipy.ndimage import binary_fill_holes
 from .base import Processor
-from utils.liver_select import pick_liver_component
+from medical_image_processing.utils.liver_select import pick_liver_component
 
 
 class ThresholdCCL(Processor):
