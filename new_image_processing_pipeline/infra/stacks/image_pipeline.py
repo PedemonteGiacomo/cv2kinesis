@@ -8,6 +8,7 @@ from aws_cdk import (
     aws_ecs as ecs,
     aws_applicationautoscaling as appscaling,
     aws_logs as logs,
+    CfnOutput,
 )
 from constructs import Construct
 import os
@@ -85,3 +86,7 @@ class ImagePipeline(Stack):
                 scaling_steps=[{"upper": 0, "change": -1}, {"lower": 1, "change": 1}],
                 adjustment_type=appscaling.AdjustmentType.CHANGE_IN_CAPACITY,
             )
+
+        CfnOutput(self, "ImageRequestsQueueUrl", value=request_q.queue_url)
+        CfnOutput(self, "ImageResultsQueueUrl", value=result_q.queue_url)
+        CfnOutput(self, "OutputBucketName",    value=out_bucket.bucket_name)
