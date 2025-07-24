@@ -28,6 +28,7 @@ class PacsApiStack(Stack):
             memory_limit_mib=512,
             task_image_options=patterns.ApplicationLoadBalancedTaskImageOptions(
                 image=img,
+                container_port=8000,
                 environment={
                     "PACS_BUCKET": bucket.bucket_name,
                 },
