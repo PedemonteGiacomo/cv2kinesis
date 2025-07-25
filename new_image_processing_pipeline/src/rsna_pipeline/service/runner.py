@@ -59,64 +59,86 @@ def _download(url: str, dst: Path) -> None:
 
 
 def main() -> None:
-    args = parse()
-    s3 = boto3.client("s3")
 
-    with tempfile.TemporaryDirectory() as tmp:
-        pacs_info = json.loads(os.environ["PACS_INFO"])
-        files = _get_presigned_from_pacs(pacs_info)
-        if len(files) == 1:
-            dst = Path(tmp) / Path(urlparse(files[0]["url"]).path).name
-            _download(files[0]["url"], dst)
-            img, src_ds = load_dicom(dst)
-            is_series = False
-            base_name = Path(dst).stem
-        else:
-            series_dir = Path(tmp) / "series"
-            series_dir.mkdir()
-            for f in files:
-                _download(f["url"], series_dir / Path(urlparse(f["url"]).path).name)
-            img, src_ds = load_series(series_dir)
-            is_series = True
-            base_name = pacs_info.get("series_id", str(uuid.uuid4()))
+    print("[runner] START")
+    try:
+        args = parse()
+        print(f"[runner] args: {args}")
+        s3 = boto3.client("s3")
 
-        proc = Processor.factory(args.algo)
-        res = proc.run(img)
-        mask_u8 = (res["mask"] > 0).astype(np.uint8) * 255
+        with tempfile.TemporaryDirectory() as tmp:
+            print(f"[runner] tempdir: {tmp}")
+            pacs_info = json.loads(os.environ["PACS_INFO"])
+            print(f"[runner] PACS_INFO: {pacs_info}")
+            files = _get_presigned_from_pacs(pacs_info)
+            print(f"[runner] presigned files: {files}")
+            if len(files) == 1:
+                dst = Path(tmp) / Path(urlparse(files[0]["url"]).path).name
+                print(f"[runner] downloading image to {dst}")
+                _download(files[0]["url"], dst)
+                print(f"[runner] downloaded: {dst}")
+                img, src_ds = load_dicom(dst)
+                is_series = False
+                base_name = Path(dst).stem
+            else:
+                series_dir = Path(tmp) / "series"
+                series_dir.mkdir()
+                for f in files:
+                    print(f"[runner] downloading series file: {f['url']}")
+                    _download(f["url"], series_dir / Path(urlparse(f["url"]).path).name)
+                img, src_ds = load_series(series_dir)
+                is_series = True
+                base_name = pacs_info.get("series_id", str(uuid.uuid4()))
 
-        out_name = f"{base_name}_{args.algo}.dcm"
-        out_path = Path(tmp) / out_name
-        save_secondary_capture(
-            mask_u8, src_ds, out_path, algo_id=args.algo, is_series=is_series
-        )
+            print(f"[runner] running processor: {args.algo}")
+            proc = Processor.factory(args.algo)
+            print(f"[runner] processor instance: {proc}")
+            res = proc.run(img)
+            print(f"[runner] result: {res}")
+            mask_u8 = (res["mask"] > 0).astype(np.uint8) * 255
 
-        dest_key = f"{args.job_id}/{out_name}"
-        s3.upload_file(str(out_path), args.s3_output, dest_key)
-
-        # URL di download (24 h)
-        presigned = s3.generate_presigned_url(
-            "get_object",
-            Params={"Bucket": args.s3_output, "Key": dest_key},
-            ExpiresIn=86_400,
-        )
-
-        if (result_q := os.getenv("RESULT_QUEUE")):
-            sqs = boto3.client("sqs")
-            sqs.send_message(
-                QueueUrl=result_q,
-                MessageBody=json.dumps(
-                    {
-                        "job_id": args.job_id,
-                        "algo_id": args.algo,
-                        "dicom": {
-                            "bucket": args.s3_output,
-                            "key": dest_key,
-                            "url": presigned,
-                        },
-                    }
-                ),
-                MessageGroupId=args.job_id,   # FIFO ordering per job
+            out_name = f"{base_name}_{args.algo}.dcm"
+            out_path = Path(tmp) / out_name
+            print(f"[runner] saving DICOM: {out_path}")
+            save_secondary_capture(
+                mask_u8, src_ds, out_path, algo_id=args.algo, is_series=is_series
             )
+
+            dest_key = f"{args.job_id}/{out_name}"
+            print(f"[runner] uploading to S3: bucket={args.s3_output} key={dest_key}")
+            s3.upload_file(str(out_path), args.s3_output, dest_key)
+
+            presigned = s3.generate_presigned_url(
+                "get_object",
+                Params={"Bucket": args.s3_output, "Key": dest_key},
+                ExpiresIn=86_400,
+            )
+            print(f"[runner] presigned result url: {presigned}")
+
+            if (result_q := os.getenv("RESULT_QUEUE")):
+                print(f"[runner] sending result to SQS: {result_q}")
+                sqs = boto3.client("sqs")
+                sqs.send_message(
+                    QueueUrl=result_q,
+                    MessageBody=json.dumps(
+                        {
+                            "job_id": args.job_id,
+                            "algo_id": args.algo,
+                            "dicom": {
+                                "bucket": args.s3_output,
+                                "key": dest_key,
+                                "url": presigned,
+                            },
+                        }
+                    ),
+                    MessageGroupId=args.job_id,   # FIFO ordering per job
+                )
+        print("[runner] END OK")
+    except Exception as e:
+        print(f"[runner] ERROR: {e}", flush=True)
+        import traceback
+        traceback.print_exc()
+        raise
 
 
 if __name__ == "__main__":

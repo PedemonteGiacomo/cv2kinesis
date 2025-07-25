@@ -8,12 +8,15 @@ if [[ -n "${AWS_ENDPOINT_URL:-}" ]]; then
 fi
 
 
-echo "[worker] start — queue: $QUEUE_URL  output: s3://$OUTPUT_BUCKET  algo: $ALGO_ID"
+
+echo "[worker] START — queue: $QUEUE_URL  output: s3://$OUTPUT_BUCKET  algo: $ALGO_ID"
 echo "[worker] hostname: $(hostname)  date: $(date)"
+env | grep -E 'QUEUE|BUCKET|ALGO' || true
 
 
 while true; do
   TS_START=$(date +%s)
+  echo "[worker] --- cycle START --- $(date) ---"
   echo "[worker] polling SQS..."
   MSG=$(aws $ENDP_OPT sqs receive-message \
             --queue-url "$QUEUE_URL" \
@@ -53,6 +56,10 @@ while true; do
     continue
   fi
   echo "[worker] message BODY: $BODY"
+  # Debug: mostra variabili ambiente usate dal runner
+  echo "[worker] PACS_INFO: $(echo "$BODY" | jq -c '.pacs')"
+  echo "[worker] PACS_API_BASE: $PACS_API_BASE"
+  echo "[worker] PACS_API_KEY: $PACS_API_KEY"
   JOBID=$(echo "$BODY" | jq -r .job_id 2>&1)
   if [[ $? -ne 0 ]]; then
     echo "[worker] ERROR: jq failed to parse job_id: $JOBID"
@@ -94,7 +101,9 @@ while true; do
   echo "[worker] runner exit code: $RUN_RC"
   echo "[worker] runner output: $RESPONSE"
   if [[ $RUN_RC -ne 0 ]]; then
-    echo "[worker] ERROR: runner failed"
+    echo "[worker] ERROR: runner failed, sleeping 10s and skipping delete-message"
+    sleep 10
+    continue
   fi
   echo "[worker] runner finished."
 
@@ -112,5 +121,5 @@ while true; do
     echo "[worker] ERROR: failed to delete message from SQS"
   fi
   TS_END=$(date +%s)
-  echo "[worker] cycle time: $((TS_END-TS_START)) seconds"
+  echo "[worker] --- cycle END --- $(date) --- duration: $((TS_END-TS_START)) seconds"
 done
