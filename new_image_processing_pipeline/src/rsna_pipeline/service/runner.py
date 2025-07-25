@@ -93,19 +93,29 @@ def main() -> None:
         dest_key = f"{args.job_id}/{out_name}"
         s3.upload_file(str(out_path), args.s3_output, dest_key)
 
-        result_queue = os.getenv("RESULT_QUEUE")
-        if result_queue:
+        # URL di download (24 h)
+        presigned = s3.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": args.s3_output, "Key": dest_key},
+            ExpiresIn=86_400,
+        )
+
+        if (result_q := os.getenv("RESULT_QUEUE")):
             sqs = boto3.client("sqs")
             sqs.send_message(
-                QueueUrl=result_queue,
+                QueueUrl=result_q,
                 MessageBody=json.dumps(
                     {
                         "job_id": args.job_id,
-                        "bucket": args.s3_output,
-                        "key": dest_key,
+                        "algo_id": args.algo,
+                        "dicom": {
+                            "bucket": args.s3_output,
+                            "key": dest_key,
+                            "url": presigned,
+                        },
                     }
                 ),
-                MessageGroupId="results",
+                MessageGroupId=args.job_id,   # FIFO ordering per job
             )
 
 

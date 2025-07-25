@@ -64,6 +64,8 @@ class ImagePipeline(Stack):
                     "OUTPUT_BUCKET": out_bucket.bucket_name,
                     "RESULT_QUEUE": result_q.queue_url,
                     "ALGO_ID": algo,
+                    "PACS_API_BASE": pacs_api_url,   # <= vedi sotto
+                    "PACS_API_KEY":  "devkey",
                 },
                 command=["/app/worker.sh"],
             )

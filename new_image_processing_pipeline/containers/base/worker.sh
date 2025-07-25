@@ -27,12 +27,16 @@ while true; do
   echo "[worker] message received: $(echo "$BODY" | jq -r .job_id)"
 
   # 2. esporta variabili consumate da runner.py
+
   export PACS_INFO=$(echo "$BODY" | jq -c '.pacs')
   export PACS_API_BASE=${PACS_API_BASE:-}
   export PACS_API_KEY=${PACS_API_KEY:-}
+  # callback personalizzata (se presente nel body)
+  CB=$(echo "$BODY" | jq -r '.callback.queue_url // empty')
+  export RESULT_QUEUE=${CB:-$RESULT_QUEUE}
 
   # 3. esegui l’algoritmo
-  python /app/rsna_pipeline/service/runner.py \
+  python -m rsna_pipeline.service.runner \
          --s3-output "$OUTPUT_BUCKET" \
          --algo "$ALGO_ID" \
          --job-id "$(echo "$BODY" | jq -r .job_id)"

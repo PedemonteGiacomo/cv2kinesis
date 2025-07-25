@@ -37,13 +37,14 @@ def list_images(study_id: str, series_id: str = Query(None)):
     prefix = f"{study_id}/"
     if series_id:
         prefix += f"{series_id}/"
-    keys = []
+    out = []
     paginator = s3.get_paginator("list_objects_v2")
     for page in paginator.paginate(Bucket=BUCKET, Prefix=prefix):
         for obj in page.get("Contents", []):
             if obj["Key"].endswith(".dcm"):
-                keys.append(obj["Key"])
-    return keys
+                url = _signed(obj["Key"])
+                out.append({"url": url, "key": obj["Key"]})
+    return out
 
 
 @app.get("/studies/{study_id}/images/{image_id}")
