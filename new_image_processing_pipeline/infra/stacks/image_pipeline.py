@@ -29,14 +29,7 @@ class ImagePipeline(Stack):
 
         out_bucket = s3.Bucket(self, "Output", removal_policy=RemovalPolicy.DESTROY)
 
-        request_q = sqs.Queue(
-            self,
-            "ImageRequests.fifo",
-            fifo=True,
-            content_based_deduplication=True,
-            visibility_timeout=Duration.minutes(15),
-        )
-
+        # Una coda per ogni algoritmo
         result_q = sqs.Queue(
             self,
             "ImageResults.fifo",
@@ -45,6 +38,17 @@ class ImagePipeline(Stack):
         )
 
         rev = str(int(time.time()))  # epoch, cambia ad ogni deploy
+
+        request_queues = {}
+        for algo in algos:
+            rq = sqs.Queue(
+                self,
+                f"ImageRequests{algo}.fifo",
+                fifo=True,
+                content_based_deduplication=True,
+                visibility_timeout=Duration.minutes(15),
+            )
+            request_queues[algo] = rq
 
         for algo in algos:
             task = ecs.FargateTaskDefinition(
@@ -64,7 +68,7 @@ class ImagePipeline(Stack):
                     stream_prefix=algo, log_retention=logs.RetentionDays.ONE_WEEK
                 ),
                 environment={
-                    "QUEUE_URL": request_q.queue_url,
+                    "QUEUE_URL": request_queues[algo].queue_url,
                     "OUTPUT_BUCKET": out_bucket.bucket_name,
                     "RESULT_QUEUE": result_q.queue_url,
                     "ALGO_ID": algo,
@@ -79,20 +83,21 @@ class ImagePipeline(Stack):
                 f"Svc{algo}",
                 cluster=cluster,
                 task_definition=task,
-                desired_count=0,
+                desired_count=1,
             )
 
-            request_q.grant_consume_messages(task.task_role)
+            request_queues[algo].grant_consume_messages(task.task_role)
             result_q.grant_send_messages(task.task_role)
             out_bucket.grant_put(task.task_role)
 
-            svc.auto_scale_task_count(max_capacity=10).scale_on_metric(
+            svc.auto_scale_task_count(min_capacity=1, max_capacity=10).scale_on_metric(
                 f"Scale{algo}",
-                metric=request_q.metric_approximate_number_of_messages_visible(),
+                metric=request_queues[algo].metric_approximate_number_of_messages_visible(),
                 scaling_steps=[{"upper": 0, "change": -1}, {"lower": 1, "change": 1}],
                 adjustment_type=appscaling.AdjustmentType.CHANGE_IN_CAPACITY,
             )
 
-        CfnOutput(self, "ImageRequestsQueueUrl", value=request_q.queue_url)
+        for algo in algos:
+            CfnOutput(self, f"ImageRequestsQueueUrl{algo}", value=request_queues[algo].queue_url)
         CfnOutput(self, "ImageResultsQueueUrl", value=result_q.queue_url)
         CfnOutput(self, "OutputBucketName",    value=out_bucket.bucket_name)

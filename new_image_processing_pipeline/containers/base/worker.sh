@@ -57,29 +57,10 @@ while true; do
   if [[ $? -ne 0 ]]; then
     echo "[worker] ERROR: jq failed to parse job_id: $JOBID"
   fi
-  JOB_ALGO=$(echo "$BODY" | jq -r .algo_id 2>&1)
-  if [[ $? -ne 0 ]]; then
-    echo "[worker] ERROR: jq failed to parse algo_id: $JOB_ALGO"
-  fi
   if [[ -z "$JOBID" || "$JOBID" == "null" ]]; then
     echo "[worker] WARNING: job_id not found in message body!"
   fi
-  if [[ -z "$JOB_ALGO" || "$JOB_ALGO" == "null" ]]; then
-    echo "[worker] WARNING: algo_id not found in message body!"
-  fi
-
-
-  # Filtro: solo i messaggi destinati a questo worker
-  if [[ "$JOB_ALGO" != "$ALGO_ID" ]]; then
-    echo "[worker] message algo_id $JOB_ALGO does not match this worker ($ALGO_ID), releasing message."
-    aws $ENDP_OPT sqs change-message-visibility \
-         --queue-url "$QUEUE_URL" \
-         --receipt-handle "$RECEIPT" \
-         --visibility-timeout 0 2>&1
-    echo "[worker] change-message-visibility exit code: $?"
-    continue
-  fi
-  echo "[worker] message received: $JOB_ALGO / $JOBID"
+  echo "[worker] message received: $JOBID"
 
   # 2. esporta variabili consumate da runner.py
 

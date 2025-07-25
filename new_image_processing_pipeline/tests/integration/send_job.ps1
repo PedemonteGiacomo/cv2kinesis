@@ -18,7 +18,7 @@ $jobId = "job-{0}" -f ([guid]::NewGuid())
 # Prepara il messaggio di richiesta processing
 $msg = @{
   job_id  = $jobId
-  algo_id = "processing_6"
+  algo_id = "processing_1"
   pacs    = @{
      study_id  = "liver1/phantomx_abdomen_pelvis_dataset/D55-01"
      series_id = "300/AiCE_BODY-SHARP_300_172938.900"
@@ -32,6 +32,6 @@ $msg = @{
 aws sqs send-message `
      --queue-url        $env:REQ_Q `
      --message-body     "$msg"   `
-     --message-group-id "jobs"
+     --message-group-id $jobId
 
 Write-Host "Messaggio inviato con job_id: $jobId"
