@@ -18,11 +18,11 @@ $jobId = "job-{0}" -f ([guid]::NewGuid())
 # Prepara il messaggio di richiesta processing
 $msg = @{
   job_id  = $jobId
-  algo_id = "processing_1"  # Cambia se vuoi testare altri algoritmi
+  algo_id = "processing_6"
   pacs    = @{
-     study_id  = "D53-03"   # Sostituisci con uno study_id valido
-     series_id = "6_120_40_BODY-SHARP_AICE_170641.498"  # Sostituisci con una series valida
-     image_id  = "IM-0856-0001.dcm"  # Sostituisci con un image valido
+     study_id  = "liver1/phantomx_abdomen_pelvis_dataset/D55-01"
+     series_id = "300/AiCE_BODY-SHARP_300_172938.900"
+     image_id  = "IM-0135-0001.dcm"
      scope     = "image"
   }
   callback = @{ queue_url = $env:RES_Q }

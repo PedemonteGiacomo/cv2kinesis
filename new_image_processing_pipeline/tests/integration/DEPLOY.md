@@ -10,7 +10,8 @@
      ```sh
         # ricostruisci l’immagine di base
         docker build -t mip-base -f containers/base/Dockerfile .
-        # ricostruisci tutte le immagini algoritmo
+
+        # ricostruisci tutte le immagini algoritmo, dovrebbe bastare il comando sopra perchè abbiamo aggiunto il meccanismo per prendere sempre immagini nuove
         $algos = @("processing_1", "processing_6")
         foreach ($a in $algos) {
             docker build -t "mip-$a" -f "containers/$a/Dockerfile" .
