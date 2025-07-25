@@ -26,7 +26,7 @@ $msg = @{
      scope     = "image"
   }
   callback = @{ queue_url = $env:RES_Q }
-} | ConvertTo-Json -Depth 4
+} | ConvertTo-Json -Depth 4 -Compress
 
 # Invia il messaggio alla coda delle richieste
 aws sqs send-message `
