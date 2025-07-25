@@ -15,7 +15,7 @@ import os
 
 
 class ImagePipeline(Stack):
-    def __init__(self, scope: Construct, _id: str, **kw) -> None:
+    def __init__(self, scope: Construct, _id: str, pacs_api_url: str = None, **kw) -> None:
         super().__init__(scope, _id, **kw)
 
         algos_param = self.node.try_get_context("algos")
@@ -64,7 +64,7 @@ class ImagePipeline(Stack):
                     "OUTPUT_BUCKET": out_bucket.bucket_name,
                     "RESULT_QUEUE": result_q.queue_url,
                     "ALGO_ID": algo,
-                    "PACS_API_BASE": pacs_api_url,   # <= vedi sotto
+                    "PACS_API_BASE": pacs_api_url if pacs_api_url else "",
                     "PACS_API_KEY":  "devkey",
                 },
                 command=["/app/worker.sh"],
