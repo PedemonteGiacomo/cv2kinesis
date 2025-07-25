@@ -10,7 +10,7 @@ from aws_cdk import (
     aws_logs as logs,
     CfnOutput,
 )
-import subprocess
+import time
 from constructs import Construct
 import os
 
@@ -44,9 +44,7 @@ class ImagePipeline(Stack):
             content_based_deduplication=True,
         )
 
-        git_rev = subprocess.check_output([
-            "git", "rev-parse", "--short", "HEAD"
-        ], text=True).strip()
+        rev = str(int(time.time()))  # epoch, cambia ad ogni deploy
 
         for algo in algos:
             task = ecs.FargateTaskDefinition(
@@ -60,7 +58,7 @@ class ImagePipeline(Stack):
                             os.path.dirname(__file__), "..", "..", "containers", algo
                         )
                     ),
-                    build_args={"REVISION": git_rev},
+                    build_args={"REVISION": rev},
                 ),
                 logging=ecs.LogDrivers.aws_logs(
                     stream_prefix=algo, log_retention=logs.RetentionDays.ONE_WEEK
