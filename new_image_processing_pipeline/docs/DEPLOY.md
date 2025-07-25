@@ -27,14 +27,21 @@
         cdk deploy --all --require-approval never
      ```
 
-3. **Verifica**
-   - Controlla che i task ECS siano aggiornati e in running.
-   - Puoi usare la console AWS ECS o:
-     ```sh
-     aws ecs list-tasks --cluster <cluster-name>
-     aws ecs describe-tasks --cluster <cluster-name> --tasks <task-id>
-     ```
+3. **Ricapitolando**
+
+   Comandi essenziali da eseguire nella root di `new_image_processing_pipeline`:
+
+   ```sh
+   # Costruisci l'immagine di base
+   docker build -t mip-base -f containers/base/Dockerfile .
+   ```
+
+   Per effettuare il deploy degli stack (utilizzando sempre le immagini più aggiornate):
+
+   ```sh
+   cd infra
+   cdk deploy --all --require-approval never
+   ```
 
 **Nota:**
-- Ogni modifica a Dockerfile o codice richiede un nuovo build e deploy.
-- Se usi `from_asset` nel CDK, il deploy aggiorna automaticamente l'immagine su ECS.
+- Ogni modifica a Dockerfile o codice richiede un nuovo build all'immagine base e deploy.
