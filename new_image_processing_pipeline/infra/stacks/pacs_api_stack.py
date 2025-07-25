@@ -6,6 +6,7 @@ from aws_cdk import (
     aws_iam as iam,
     aws_secretsmanager as secrets,
 )
+from datetime import datetime as dt
 from constructs import Construct
 import os, pathlib
 
@@ -17,7 +18,12 @@ class PacsApiStack(Stack):
 
         cluster = ecs.Cluster(self, "PacsCluster", vpc=vpc)
 
-        img = ecs.ContainerImage.from_asset("../pacs_api")   # path relativo alla cartella infra/stacks
+        img = ecs.ContainerImage.from_asset(
+            "../pacs_api",
+            build_args={
+                "REVISION": dt.utcnow().strftime("%Y%m%d%H%M%S")
+            },
+        )
 
         svc = patterns.ApplicationLoadBalancedFargateService(
             self,

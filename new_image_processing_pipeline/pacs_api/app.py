@@ -30,10 +30,11 @@ def list_studies(limit: int = 20):
     return studies
 
 
-@app.get("/studies/{study_id}/images")
-def list_images(study_id: str, series_id: str = Query(None)):
-    if not regex_uid.match(study_id):
-        raise HTTPException(400, "bad UID")
+from fastapi import Path
+from typing import Optional
+
+@app.get("/studies/{study_id:path}/images")
+def list_images(study_id: str = Path(..., description="Path completo fino allo study, es: liver1/phantomx_abdomen_pelvis_dataset/D55-01"), series_id: Optional[str] = Query(None)):
     prefix = f"{study_id}/"
     if series_id:
         prefix += f"{series_id}/"
@@ -47,8 +48,13 @@ def list_images(study_id: str, series_id: str = Query(None)):
     return out
 
 
-@app.get("/studies/{study_id}/images/{image_id}")
-def get_image(study_id: str, image_id: str):
-    key = quote_plus(f"{study_id}/{image_id}")  # evita // negli UID "strani"
+
+# Supporta path multipli dopo study_id (es: /studies/liver1/phantomx_abdomen_pelvis_dataset/D55-01/images/300/AiCE_BODY-SHARP_300_172938.900/IM-0135-0001.dcm)
+@app.get("/studies/{study_id:path}/images/{image_path:path}")
+def get_image(
+    study_id: str = Path(..., description="Path completo fino allo study, es: liver1/phantomx_abdomen_pelvis_dataset/D55-01"),
+    image_path: str = Path(..., description="Path relativo all'immagine dopo lo study_id, es: 300/AiCE_BODY-SHARP_300_172938.900/IM-0135-0001.dcm")
+):
+    key = f"{study_id}/{image_path}"
     url = _signed(key)
     return JSONResponse({"url": url, "expires": (dt.datetime.utcnow() + dt.timedelta(seconds=900)).isoformat()+"Z"})
