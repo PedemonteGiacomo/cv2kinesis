@@ -10,6 +10,7 @@ from aws_cdk import (
     aws_logs as logs,
     CfnOutput,
 )
+import subprocess
 from constructs import Construct
 import os
 
@@ -43,6 +44,10 @@ class ImagePipeline(Stack):
             content_based_deduplication=True,
         )
 
+        git_rev = subprocess.check_output([
+            "git", "rev-parse", "--short", "HEAD"
+        ], text=True).strip()
+
         for algo in algos:
             task = ecs.FargateTaskDefinition(
                 self, f"TaskDef{algo}", cpu=1024, memory_limit_mib=2048
@@ -54,7 +59,8 @@ class ImagePipeline(Stack):
                         os.path.join(
                             os.path.dirname(__file__), "..", "..", "containers", algo
                         )
-                    )
+                    ),
+                    build_args={"REVISION": git_rev},
                 ),
                 logging=ecs.LogDrivers.aws_logs(
                     stream_prefix=algo, log_retention=logs.RetentionDays.ONE_WEEK
