@@ -26,6 +26,7 @@ RUN curl -sSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp
 # Python dependencies & source                                                  #
 # -----------------------------------------------------------------------------#
 WORKDIR /app
+ENV PYTHONPATH="/app/src"
 COPY requirements.txt .
 COPY src/ src/
 RUN pip install --no-cache-dir -r requirements.txt -e ./src requests boto3
