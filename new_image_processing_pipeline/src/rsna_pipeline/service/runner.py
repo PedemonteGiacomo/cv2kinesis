@@ -115,23 +115,35 @@ def main() -> None:
             )
             print(f"[runner] presigned result url: {presigned}")
 
-            if (result_q := os.getenv("RESULT_QUEUE")):
-                print(f"[runner] sending result to SQS: {result_q}")
-                sqs = boto3.client("sqs")
-                sqs.send_message(
-                    QueueUrl=result_q,
-                    MessageBody=json.dumps(
-                        {
-                            "job_id": args.job_id,
-                            "algo_id": args.algo,
-                            "dicom": {
-                                "bucket": args.s3_output,
-                                "key": dest_key,
-                                "url": presigned,
-                            },
+            # Pubblica su SNS Topic con attributo client_id
+            if (results_topic_arn := os.getenv("RESULTS_TOPIC_ARN")):
+                print(f"[runner] sending result to SNS: {results_topic_arn}")
+                sns_client = boto3.client("sns")
+                # Recupera client_id dal callback
+                pacs_info_env = os.environ.get("PACS_INFO", "{}")
+                try:
+                    pacs_info = json.loads(pacs_info_env)
+                except Exception:
+                    pacs_info = {}
+                client_id = pacs_info.get("callback", {}).get("client_id", "unknown")
+                message = {
+                    "job_id": args.job_id,
+                    "algo_id": args.algo,
+                    "dicom": {
+                        "bucket": args.s3_output,
+                        "key": dest_key,
+                        "url": presigned,
+                    },
+                }
+                sns_client.publish(
+                    TopicArn=results_topic_arn,
+                    Message=json.dumps(message),
+                    MessageAttributes={
+                        "client_id": {
+                            "DataType": "String",
+                            "StringValue": client_id
                         }
-                    ),
-                    MessageGroupId=args.job_id,   # FIFO ordering per job
+                    }
                 )
         print("[runner] END OK")
     except Exception as e:

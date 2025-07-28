@@ -4,6 +4,7 @@ import boto3
 
 sqs = boto3.client("sqs")
 QUEUE_URLS = json.loads(os.environ["QUEUE_URLS_JSON"])
+RESULT_URLS = json.loads(os.environ["RESULT_URLS_JSON"])
 
 def lambda_handler(event, context):
     algo = event["pathParameters"]["algo_id"]
@@ -11,6 +12,9 @@ def lambda_handler(event, context):
         return {"statusCode": 404, "body": json.dumps({"error":"Unknown algorithm"})}
 
     body = json.loads(event["body"])
+    # Inietta la callback corretta
+    body["callback"] = {"queue_url": RESULT_URLS[algo]}
+
     msg = json.dumps(body)
     resp = sqs.send_message(
         QueueUrl=QUEUE_URLS[algo],
@@ -19,5 +23,9 @@ def lambda_handler(event, context):
     )
     return {
         "statusCode": 202,
-        "body": json.dumps({"message":"Enqueued","sqs_message_id":resp["MessageId"]})
+        "body": json.dumps({
+            "message":"Enqueued",
+            "sqs_message_id":resp["MessageId"],
+            "result_queue": RESULT_URLS[algo]
+        })
     }

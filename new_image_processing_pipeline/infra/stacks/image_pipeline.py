@@ -11,13 +11,16 @@ from aws_cdk import (
     aws_ecr as ecr,
     CfnOutput,
     aws_lambda as _lambda,
-    aws_apigateway as apigw
+    aws_apigateway as apigw,
+    aws_sns as sns,
+    aws_iam as iam
 )
 from constructs import Construct
 import json
 
 
 class ImagePipeline(Stack):
+        
     def __init__(self, scope: Construct, _id: str, pacs_api_url: str = None, **kw) -> None:
         super().__init__(scope, _id, **kw)
 
@@ -35,13 +38,18 @@ class ImagePipeline(Stack):
 
         out_bucket = s3.Bucket(self, "Output", removal_policy=RemovalPolicy.DESTROY)
 
-        # Una coda per ogni algoritmo
-        result_q = sqs.Queue(
-            self,
-            "ImageResults.fifo",
-            fifo=True,
-            content_based_deduplication=True,
-        )
+        # 1️⃣ Crea il Topic SNS per i risultati
+        results_topic = sns.Topic(self, "ImageResultsTopic", topic_name="ImageResultsTopic")
+
+        # Una coda risultati dedicata per ogni algoritmo
+        result_queues = {}
+        for algo in algos:
+            result_queues[algo] = sqs.Queue(
+                self,
+                f"ImageResults{algo}.fifo",
+                fifo=True,
+                content_based_deduplication=True,
+            )
 
         request_queues = {}
         for algo in algos:
@@ -62,7 +70,7 @@ class ImagePipeline(Stack):
                 "Main",
                 image=ecs.ContainerImage.from_ecr_repository(
                     ecr_repo,
-                    tag=algo  # processing_1 o processing_6
+                    tag=algo
                 ),
                 logging=ecs.LogDrivers.aws_logs(
                     stream_prefix=algo, log_retention=logs.RetentionDays.ONE_WEEK
@@ -70,7 +78,8 @@ class ImagePipeline(Stack):
                 environment={
                     "QUEUE_URL": request_queues[algo].queue_url,
                     "OUTPUT_BUCKET": out_bucket.bucket_name,
-                    "RESULT_QUEUE": result_q.queue_url,
+                    "RESULT_QUEUE": result_queues[algo].queue_url,
+                    "RESULTS_TOPIC_ARN": results_topic.topic_arn,
                     "ALGO_ID": algo,
                     "PACS_API_BASE": pacs_api_url if pacs_api_url else "",
                     "PACS_API_KEY":  "devkey",
@@ -87,8 +96,9 @@ class ImagePipeline(Stack):
             )
 
             request_queues[algo].grant_consume_messages(task.task_role)
-            result_q.grant_send_messages(task.task_role)
+            result_queues[algo].grant_send_messages(task.task_role)
             out_bucket.grant_put(task.task_role)
+            results_topic.grant_publish(task.task_role)
 
             svc.auto_scale_task_count(min_capacity=1, max_capacity=10).scale_on_metric(
                 f"Scale{algo}",
@@ -97,7 +107,9 @@ class ImagePipeline(Stack):
                 adjustment_type=appscaling.AdjustmentType.CHANGE_IN_CAPACITY,
             )
         # Lambda Router & API Gateway
+
         queue_url_map = { algo: rq.queue_url for algo, rq in request_queues.items() }
+        result_url_map = { algo: rq.queue_url for algo, rq in result_queues.items() }
 
         router = _lambda.Function(
             self, "RouterFunction",
@@ -105,11 +117,14 @@ class ImagePipeline(Stack):
             handler="router.lambda_handler",
             code=_lambda.Code.from_asset(os.path.join(os.path.dirname(__file__), "../lambda")),
             environment={
-               "QUEUE_URLS_JSON": json.dumps(queue_url_map)
+               "QUEUE_URLS_JSON": json.dumps(queue_url_map),
+               "RESULT_URLS_JSON": json.dumps(result_url_map)
             }
         )
 
         for rq in request_queues.values():
+            rq.grant_send_messages(router)
+        for rq in result_queues.values():
             rq.grant_send_messages(router)
 
         api = apigw.RestApi(self, "ProcessingApi",
@@ -126,5 +141,5 @@ class ImagePipeline(Stack):
 
         for algo in algos:
             CfnOutput(self, f"ImageRequestsQueueUrl{algo}", value=request_queues[algo].queue_url)
-        CfnOutput(self, "ImageResultsQueueUrl", value=result_q.queue_url)
+            CfnOutput(self, f"ImageResultsQueueUrl{algo}", value=result_queues[algo].queue_url)
         CfnOutput(self, "OutputBucketName",    value=out_bucket.bucket_name)

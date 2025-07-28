@@ -30,7 +30,6 @@ $msg = @{
      image_id  = "IM-0135-0001.dcm"
      scope     = "image"
   }
-  callback = @{ queue_url = $env:RES_Q }
 } | ConvertTo-Json -Depth 4 -Compress
 
 # Stampa il JSON che verrà inviato
