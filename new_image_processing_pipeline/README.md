@@ -1,109 +1,162 @@
-# Image Processing Pipeline
+# 🚀 Image Processing Pipeline
 
-Questa repository contiene i container, la logica e l'infrastruttura per una pipeline di image processing event-driven su AWS.
-
-## Architettura aggiornata
-
-**Client → API Gateway → Lambda Router → SQS → Fargate → SNS → SQS Results → Proxy Lambda → Frontend**
-
-Il client invia una richiesta HTTP POST a `/process/{algo_id}` su API Gateway. La Lambda "router" valida e inoltra il job sulla coda SQS corretta. I worker Fargate processano i job e pubblicano il risultato su SNS, che recapita solo al client giusto tramite SQS FIFO. Il frontend React polla la coda via Lambda proxy HTTP.
+Questa repository contiene i container, la logica e l’infrastruttura per una pipeline di _image processing_ event‑driven su AWS.
 
 ---
 
-## Checklist End-to-End
+## 🏗️ Architettura
 
-### A. Preparazione ECR
+```
+Client → API Gateway → Lambda Router → SQS Requests → Fargate Workers → SNS Results → SQS per client → Lambda Proxy‑SQS → Frontend React
+```
 
-1. Crea i repo ECR
-   ```powershell
-   cd infra/ecr
-   .\create-ecr-repos.ps1 -Region us-east-1 -Account 544547773663
-   .\push_algos.ps1 -Region us-east-1 -Account 544547773663
-   .\push_pacs.ps1 -Region us-east-1 -Account 544547773663
-   ```
-1. Build & Push PACS‑API (IF NOT USING THE PUSH POWERHSELL SCRIPT)
-   ```powershell
-   cd ../../pacs_api
-   docker build -t mip-pacs-api -f .
-   docker tag mip-pacs-api 544547773663.dkr.ecr.eu-central-1.amazonaws.com/pacs-ecr:latest
-   docker push    544547773663.dkr.ecr.eu-central-1.amazonaws.com/pacs-ecr:latest
-   ```
-3. Build & Push Algos
-   ```powershell
-   cd ..
-   docker build -t mip-base:latest -f containers/base/Dockerfile .
-   docker build -t mip-processing_1 -f containers/processing_1/Dockerfile .
-   docker build -t mip-processing_6 -f containers/processing_6/Dockerfile .
-   docker tag mip-processing_1  544547773663.dkr.ecr.eu-central-1.amazonaws.com/mip-algos:processing_1
-   docker tag mip-processing_6  544547773663.dkr.ecr.eu-central-1.amazonaws.com/mip-algos:processing_6
-   docker push 544547773663.dkr.ecr.eu-central-1.amazonaws.com/mip-algos:processing_1
-   docker push 544547773663.dkr.ecr.eu-central-1.amazonaws.com/mip-algos:processing_6
-   ```
+- **Client**: invia job via HTTP
+- **API Gateway**: espone endpoint REST
+- **Lambda Router**: valida e smista i job
+- **SQS Requests**: code FIFO per ogni algoritmo
+- **Fargate Workers**: processano i job
+- **SNS Results**: fan-out dei risultati
+- **SQS per client**: coda FIFO isolata per ogni client
+- **Lambda Proxy-SQS**: polling HTTP per frontend
+- **Frontend React**: provisioning, invio job, polling risultati
 
-### B. Deploy CDK
+---
 
-1. Installa le dipendenze CDK se serve
-2. Deploy Imports + PACS‑API + ImagePipeline
-   ```bash
-    cd ..
-    # assicurati di essere dentro /infra
-    cdk deploy Imports      --require-approval never
-    cdk deploy PacsApi      --require-approval never
-    cdk deploy ImgPipeline  --require-approval never
-    # oppure più semplicemente:
-    cdk deploy --all
-   ```
-3. Al termine avrai:
-   - DNS del PACS‑API LB (output PacsApi)
-   - URL di tutte le code SQS (output ImgPipeline)
-   - ARN del topic SNS “ImageResultsTopic”
+## 📁 Struttura del progetto
 
-4. Verifica variabili ambiente Lambda/container:
-   - ProvisionFunction: `RESULTS_TOPIC_ARN`
-   - RouterFunction: `QUEUE_URLS_JSON`, `RESULT_URLS_JSON`
-   - Fargate: `PACS_API_BASE`, `PACS_API_KEY`
+```
+new_image_processing_pipeline/
+├── README.md ← questo file
+├── gen_env/
+│   └── gen_env.ps1           # script per raccogliere gli output CDK
+├── infra/
+│   ├── clients/
+│   ├── ecr/
+│   ├── lambda/
+│   └── stacks/
+├── pacs_api/
+├── containers/
+├── docs/
+└── src/
+```
 
-### C. Frontend React
+---
 
-1. Modifica in `infra/clients/react-app/src/index.jsx`:
-   ```js
-   const API_BASE  = '<YOUR_API_GATEWAY_BASE>';
-   const PACS_BASE = 'http://<YOUR_PACS_LOAD_BALANCER_DNS>';
-   ```
-2. Installa e avvia:
-   ```bash
-   npm ci
-   npm start
-   ```
-3. Apri [http://localhost:3000](http://localhost:3000)
+## 🛠️ Prerequisiti
 
-### D. Flusso di prova
+- AWS CLI configurato (CloudFormation, ECR, ECS, SQS, SNS, Lambda, IAM)
+- AWS CDK v2
+- Docker
+- PowerShell (Windows) o Bash (Linux/macOS)
+- Node.js + npm (per il frontend React)
+
+---
+
+## 1️⃣ Preparazione ECR
+
+**Crea i repository e push delle immagini**
+
+```powershell
+cd infra/ecr
+./create-ecr-repos.ps1 -Region <REGION> -Account <ACCOUNT_ID>
+./push-algos.ps1 -Region <REGION> -Account <ACCOUNT_ID>
+./push-pacs.ps1 -Region <REGION> -Account <ACCOUNT_ID>
+```
+
+> _Nota: <REGION> es. eu-central-1 o us-east-1; <ACCOUNT_ID> es. 544547773663._
+
+---
+
+## 2️⃣ Deploy infrastruttura con CDK
+
+```bash
+cd infra
+npm install   # solo se ci sono dipendenze node
+cdk deploy Imports --require-approval never
+cdk deploy PacsApiStack --require-approval never
+cdk deploy ImgPipeline --require-approval never
+# oppure
+cdk deploy --all --require-approval never
+```
+
+**Output deploy:**
+- DNS PACS API LB (`PacsApiLB`)
+- API Gateway endpoint (`ProcessingApiEndpoint`)
+- URL SQS Requests/Results per ogni algoritmo
+- SNS Topic ARN (`ImageResultsTopicArn`)
+
+---
+
+## 3️⃣ Generazione variabili d’ambiente
+
+Script PowerShell per raccogliere gli output CDK:
+
+```powershell
+./gen_env/gen_env.ps1 -ImgStack "ImgPipeline" -PacsStack "PacsApiStack"
+. ./infra/env.ps1   # importa le variabili in sessione
+```
+
+**Variabili disponibili:**
+- `$Env:API_BASE`         → API Gateway
+- `$Env:PACS_API_BASE`    → DNS PACS API
+- `$Env:RESULTS_TOPIC_ARN`
+- `$Env:REQ1_QUEUE`, `$Env:RES1_QUEUE`, ...
+
+---
+
+## 4️⃣ Frontend React
+
+```bash
+cd infra/clients/react-app
+npm ci
+npm start
+```
+
+Nel file `src/index.jsx`:
+```js
+const API_BASE  = process.env.API_BASE    || '<YOUR_API_GATEWAY_BASE>';
+const PACS_BASE = process.env.PACS_API_BASE || '<YOUR_PACS_API_BASE>';
+```
+Apri il browser su [http://localhost:3000](http://localhost:3000).
+
+---
+
+## 5️⃣ Flusso utente end‑to‑end
 
 1. **Anteprima PACS**
    - Inserisci `study_id`, `series_id`, `image_id`, `scope=image`
-   - Clicca “Carica Anteprima” → vedi l’immagine originale
-2. **Provisiona la coda**
-   - Clicca “Provisiona coda” → ottieni `client_id` e `queue_url`
-3. **Avvia processing**
-   - Clicca “Avvia processing” (invio `/process/processing_1` con payload PACS + callback.client_id)
-   - Lambda router sposta su SQS → worker Fargate processa e pubblica su SNS con MessageAttribute.client_id
-   - SNS recapita solo alla coda FIFO del client (filter policy)
-   - Proxy-SQS Lambda espone `/proxy-sqs?queue=<url>`
-   - Frontend fa polling → quando arriva il messaggio giusto, mostra l’url dell’immagine processata
+   - Clicca _Carica Anteprima_ → visualizzi l’immagine originale
+2. **Provision coda client**
+   - Clicca _Provisiona coda_ → ricevi `client_id` e `queue_url`
+3. **Avvio processing**
+   - Clicca _Avvia processing_ → invia POST a `$API_BASE/process/processing_1` con payload PACS + callback.client_id
+   - Lambda Router mette il job su SQS Requests
+   - Fargate Worker elabora e pubblica su SNS con attributo client_id
+   - SNS recapita solo alla tua coda FIFO client
+4. **Polling risultati**
+   - Il frontend chiama in loop `GET $API_BASE/proxy-sqs?queue=<queue_url>`
+   - Quando arriva il messaggio corretto (`job_id`), vedi l’immagine processata
 
 ---
 
-## Script client di esempio
+## 6️⃣ Script client di esempio
 
-Vedi `infra/clients/send-http-job.ps1` per inviare job via PowerShell.
+Vedi `infra/clients/send-http-job.ps1` per inviare un job via PowerShell.
 
-## PACS simulator
+Per simulare il PACS‑API in locale, consulta la documentazione in `docs/`.
 
+---
+
+## 7️⃣ Cleanup
+
+Per rimuovere tutto:
 ```bash
-docker build -t pacs-sim pacs_api_sim
-docker run -p 8000:8000 -e AWS_ACCESS_KEY_ID=... -e AWS_SECRET_ACCESS_KEY=... pacs-sim
+cd infra
+cdk destroy --all --force
 ```
 
-## Note
-- I worker Fargate non leggono più direttamente da SQS, ma ricevono job inoltrati dalla Lambda router.
+---
+
+## 📚 Note
+- I worker Fargate non leggono direttamente da SQS, ma ricevono job inoltrati dalla Lambda router.
 - Per estendere la pipeline o aggiungere algoritmi, consulta `src/medical_image_processing/README.md`.

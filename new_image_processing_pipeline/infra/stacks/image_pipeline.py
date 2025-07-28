@@ -179,3 +179,7 @@ class ImagePipeline(Stack):
             CfnOutput(self, f"ImageRequestsQueueUrl{algo}", value=request_queues[algo].queue_url)
             CfnOutput(self, f"ImageResultsQueueUrl{algo}", value=result_queues[algo].queue_url)
         CfnOutput(self, "OutputBucketName",    value=out_bucket.bucket_name)
+        # Output per SNS Topic ARN
+        CfnOutput(self, "ImageResultsTopicArn", value=results_topic.topic_arn)
+        # Output per API Gateway endpoint
+        CfnOutput(self, "ProcessingApiEndpoint", value=api.url)
