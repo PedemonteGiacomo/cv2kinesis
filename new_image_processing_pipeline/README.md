@@ -17,9 +17,11 @@ Il client invia una richiesta HTTP POST a `/process/{algo_id}` su API Gateway. L
 1. Crea i repo ECR
    ```powershell
    cd infra/ecr
-   .\create-ecr-repos.ps1 -Region eu-central-1 -Account 544547773663
+   .\create-ecr-repos.ps1 -Region us-east-1 -Account 544547773663
+   .\push_algos.ps1 -Region us-east-1 -Account 544547773663
+   .\push_pacs.ps1 -Region us-east-1 -Account 544547773663
    ```
-2. Build & Push PACS‑API
+1. Build & Push PACS‑API (IF NOT USING THE PUSH POWERHSELL SCRIPT)
    ```powershell
    cd ../../pacs_api
    docker build -t mip-pacs-api -f .
@@ -43,10 +45,11 @@ Il client invia una richiesta HTTP POST a `/process/{algo_id}` su API Gateway. L
 1. Installa le dipendenze CDK se serve
 2. Deploy Imports + PACS‑API + ImagePipeline
    ```bash
-   cd infra
-   cdk deploy Imports      --require-approval never
-   cdk deploy PacsApi      --require-approval never
-   cdk deploy ImgPipeline  --require-approval never
+    cd ..
+    # assicurati di essere dentro /infra
+    cdk deploy Imports      --require-approval never
+    cdk deploy PacsApi      --require-approval never
+    cdk deploy ImgPipeline  --require-approval never
    ```
 3. Al termine avrai:
    - DNS del PACS‑API LB (output PacsApi)

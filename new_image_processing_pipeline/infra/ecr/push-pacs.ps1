@@ -1,23 +1,29 @@
-# Script PowerShell per buildare, taggare e pushare l'immagine PACS API su ECR
 param(
-  [string] $Region = "eu-central-1",
+  [string] $Region  = "us-east-1",
   [string] $Account = "544547773663"
 )
 
 $repo = "$Account.dkr.ecr.$Region.amazonaws.com/pacs-ecr"
 
-# Build
-cd ..\..
-cd new_image_processing_pipeline
+# Spostati nella root del progetto e poi nella cartella pacs_api
+Push-Location (Join-Path $PSScriptRoot "..\..")
+Push-Location "pacs_api"
 
-docker build -t mip-pacs-api -f pacs_api/Dockerfile .
+# Build dell’immagine PACS API
+docker build -t mip-pacs-api .
 
-# Tag
+# Tag per ECR
+docker tag mip-pacs-api "${repo}:latest"
 
-docker tag mip-pacs-api $repo:latest
+# Autenticazione a ECR
+aws ecr get-login-password --region $Region |
+  docker login --username AWS --password-stdin "$Account.dkr.ecr.$Region.amazonaws.com"
 
-# Push
+# Push su ECR
+docker push "${repo}:latest"
 
-docker push $repo:latest
+Write-Host "✅ PACS API ora in ECR sotto pacs-ecr ($Region)"
 
-Write-Host "✅ PACS API ora in ECR sotto pacs-ecr"
+# Torna alla cartella originale
+Pop-Location
+Pop-Location

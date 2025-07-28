@@ -1,26 +1,31 @@
-# Script PowerShell per buildare, taggare e pushare le immagini processing_1 e processing_6 su ECR
 param(
-  [string] $Region = "eu-central-1",
+  [string] $Region  = "us-east-1",
   [string] $Account = "544547773663"
 )
 
 $repo = "$Account.dkr.ecr.$Region.amazonaws.com/mip-algos"
 
-# Build delle immagini
-cd ..\..
-cd new_image_processing_pipeline
+# Torna alla root del progetto
+Push-Location (Join-Path $PSScriptRoot "..\..")
 
-docker build -t mip-processing_1 -f containers/processing_1/Dockerfile .
-docker build -t mip-processing_6 -f containers/processing_6/Dockerfile .
+# Ricostruisci le immagini
+docker build -t mip-base:latest             -f containers/base/Dockerfile .
+docker build -t mip-processing_1             -f containers/processing_1/Dockerfile .
+docker build -t mip-processing_6             -f containers/processing_6/Dockerfile .
 
-# Tag
+# Tag utile per ECR
+docker tag mip-processing_1 "${repo}:processing_1"
+docker tag mip-processing_6 "${repo}:processing_6"
 
-docker tag mip-processing_1 $repo:processing_1
-docker tag mip-processing_6 $repo:processing_6
+# Autenticazione a ECR
+aws ecr get-login-password --region $Region |
+  docker login --username AWS --password-stdin "$Account.dkr.ecr.$Region.amazonaws.com"
 
-# Push
+# Push su ECR
+docker push "${repo}:processing_1"
+docker push "${repo}:processing_6"
 
-docker push $repo:processing_1
-docker push $repo:processing_6
+Write-Host "✅ processing_1 e processing_6 ora in ECR sotto mip-algos ($Region)"
 
-Write-Host "✅ processing_1 e processing_6 ora in ECR sotto mip-algos"
+# Ritorna nella cartella originale
+Pop-Location
