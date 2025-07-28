@@ -82,7 +82,6 @@ function App() {
             <select value={algorithm} onChange={e=>setAlgorithm(e.target.value)} style={{width:'100%'}}>
               <option value="processing_1">Processing 1</option>
               <option value="processing_6">Processing 6</option>
-              <option value="base">Base</option>
               {/* aggiungi altri algoritmi se necessario */}
             </select>
           </div>
