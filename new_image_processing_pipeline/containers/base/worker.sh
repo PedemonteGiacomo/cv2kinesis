@@ -92,7 +92,10 @@ while true; do
   if [[ $? -ne 0 ]]; then
     echo "[worker] ERROR: jq failed to parse callback.queue_url: $CB"
   fi
-  export RESULT_QUEUE=${CB:-$RESULT_QUEUE}
+  if [[ -z "$CB" ]]; then
+    echo "[worker] ERROR: RESULT_QUEUE not found in message body!"; exit 1
+  fi
+  export RESULT_QUEUE="$CB"
   echo "[worker] PACS_INFO: $PACS_INFO"
   echo "[worker] CLIENT_ID: $CLIENT_ID"
   echo "[worker] RESULT_QUEUE: $RESULT_QUEUE"
