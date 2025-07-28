@@ -150,7 +150,11 @@ def main() -> None:
                 raise
 
             try:
-                dest_key = f"{args.job_id}/{out_name}"
+                # Struttura output: study_id/series_id/image_id_processing_1.dcm
+                dest_key = f"{pacs_info['study_id']}/{pacs_info['series_id']}/"
+                # Sostituisci .dcm con _{args.algo}.dcm
+                base_image_name = pacs_info['image_id'].replace('.dcm', f'_{args.algo}.dcm')
+                dest_key = f"{dest_key}{base_image_name}"
                 print(f"[runner] uploading to S3: bucket={args.s3_output} key={dest_key} file={out_path}")
                 s3.upload_file(str(out_path), args.s3_output, dest_key)
                 print(f"[runner] S3 upload complete: s3://{args.s3_output}/{dest_key}")
@@ -193,7 +197,8 @@ def main() -> None:
                             "DataType": "String",
                             "StringValue": os.environ.get("CLIENT_ID","unknown")
                         }
-                    }
+                    },
+                    MessageGroupId=args.job_id
                 )
                 print(f"[runner] SQS send_message response: {resp}")
             except Exception as e:
