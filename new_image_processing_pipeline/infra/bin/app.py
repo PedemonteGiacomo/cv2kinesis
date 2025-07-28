@@ -3,6 +3,7 @@ from aws_cdk import (
     App,
     Stack,
     aws_s3 as s3,
+    Fn,
 )
 from stacks.pacs_api_stack import PacsApiStack
 from stacks.image_pipeline import ImagePipeline
@@ -32,7 +33,8 @@ pacs_api = PacsApiStack(                      # 👈 2° stack
 )
 
 # ───────────────────── Image‑processing pipeline ────────────────────
-img_pipe = ImagePipeline(app, "ImgPipeline", pacs_api_url=pacs_api.api_url)  # 👈 3° stack
+pacs_api_url = Fn.import_value("PacsApiLoadBalancerDNS")
+img_pipe = ImagePipeline(app, "ImgPipeline", pacs_api_url=pacs_api_url)  # 👈 3° stack
 
 # Inietta la base‑URL dell’API in tutti i container worker
 from aws_cdk.aws_ecs import ContainerDefinition

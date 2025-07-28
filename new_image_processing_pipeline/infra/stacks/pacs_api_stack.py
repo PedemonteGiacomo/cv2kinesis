@@ -50,3 +50,9 @@ class PacsApiStack(Stack):
 
         # opzionale: export ARN/URL per usare nel resto della pipeline
         self.api_url = svc.load_balancer.load_balancer_dns_name
+        # Export DNS del LB come output CloudFormation
+        from aws_cdk import CfnOutput
+        CfnOutput(self, "PacsApiLB",
+            value=svc.load_balancer.load_balancer_dns_name,
+            export_name="PacsApiLoadBalancerDNS"
+        )

@@ -50,6 +50,8 @@ Il client invia una richiesta HTTP POST a `/process/{algo_id}` su API Gateway. L
     cdk deploy Imports      --require-approval never
     cdk deploy PacsApi      --require-approval never
     cdk deploy ImgPipeline  --require-approval never
+    # oppure più semplicemente:
+    cdk deploy --all
    ```
 3. Al termine avrai:
    - DNS del PACS‑API LB (output PacsApi)
