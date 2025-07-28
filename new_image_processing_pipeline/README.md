@@ -17,23 +17,25 @@ Il client invia una richiesta HTTP POST a `/process/{algo_id}` su API Gateway. L
 1. Crea i repo ECR
    ```powershell
    cd infra/ecr
-   .\create-ecr-repos.ps1 -Region eu-central-1 -Account 123456789012
+   .\create-ecr-repos.ps1 -Region eu-central-1 -Account 544547773663
    ```
 2. Build & Push PACS‑API
    ```powershell
-   cd ../..
-   docker build -t mip-pacs-api -f pacs_api/Dockerfile .
-   docker tag mip-pacs-api 123456789012.dkr.ecr.eu-central-1.amazonaws.com/pacs-ecr:latest
-   docker push    123456789012.dkr.ecr.eu-central-1.amazonaws.com/pacs-ecr:latest
+   cd ../../pacs_api
+   docker build -t mip-pacs-api -f .
+   docker tag mip-pacs-api 544547773663.dkr.ecr.eu-central-1.amazonaws.com/pacs-ecr:latest
+   docker push    544547773663.dkr.ecr.eu-central-1.amazonaws.com/pacs-ecr:latest
    ```
 3. Build & Push Algos
    ```powershell
+   cd ..
+   docker build -t mip-base:latest -f containers/base/Dockerfile .
    docker build -t mip-processing_1 -f containers/processing_1/Dockerfile .
    docker build -t mip-processing_6 -f containers/processing_6/Dockerfile .
-   docker tag mip-processing_1  123456789012.dkr.ecr.eu-central-1.amazonaws.com/mip-algos:processing_1
-   docker tag mip-processing_6  123456789012.dkr.ecr.eu-central-1.amazonaws.com/mip-algos:processing_6
-   docker push 123456789012.dkr.ecr.eu-central-1.amazonaws.com/mip-algos:processing_1
-   docker push 123456789012.dkr.ecr.eu-central-1.amazonaws.com/mip-algos:processing_6
+   docker tag mip-processing_1  544547773663.dkr.ecr.eu-central-1.amazonaws.com/mip-algos:processing_1
+   docker tag mip-processing_6  544547773663.dkr.ecr.eu-central-1.amazonaws.com/mip-algos:processing_6
+   docker push 544547773663.dkr.ecr.eu-central-1.amazonaws.com/mip-algos:processing_1
+   docker push 544547773663.dkr.ecr.eu-central-1.amazonaws.com/mip-algos:processing_6
    ```
 
 ### B. Deploy CDK
