@@ -17,6 +17,8 @@ env | grep -E 'QUEUE|BUCKET|ALGO' || true
 while true; do
   TS_START=$(date +%s)
   echo "[worker] --- cycle START --- $(date) ---"
+  echo "[worker] ENVIRONMENT VARS:"
+  env | grep -E 'QUEUE|BUCKET|ALGO|PACS' || true
   echo "[worker] polling SQS..."
   MSG=$(aws $ENDP_OPT sqs receive-message \
             --queue-url "$QUEUE_URL" \
@@ -60,6 +62,8 @@ while true; do
   echo "[worker] PACS_INFO: $(echo "$BODY" | jq -c '.pacs')"
   echo "[worker] PACS_API_BASE: $PACS_API_BASE"
   echo "[worker] PACS_API_KEY: $PACS_API_KEY"
+  echo "[worker] CLIENT_ID: $CLIENT_ID"
+  echo "[worker] RESULT_QUEUE: $RESULT_QUEUE"
   JOBID=$(echo "$BODY" | jq -r .job_id 2>&1)
   if [[ $? -ne 0 ]]; then
     echo "[worker] ERROR: jq failed to parse job_id: $JOBID"
@@ -96,21 +100,21 @@ while true; do
   # 3. esegui l’algoritmo
 
 
-  echo "[worker] launching runner: python -m rsna_pipeline.service.runner --s3-output $OUTPUT_BUCKET --algo $ALGO_ID --job-id $JOBID"
-  RUNNER_CMD="python -m rsna_pipeline.service.runner --s3-output \"$OUTPUT_BUCKET\" --algo \"$ALGO_ID\" --job-id \"$JOBID\""
-  RESPONSE=$(python -m rsna_pipeline.service.runner \
+  echo "[worker] >>> launching runner (streaming logs)…"
+  set -x
+  python -m rsna_pipeline.service.runner \
          --s3-output "$OUTPUT_BUCKET" \
          --algo "$ALGO_ID" \
-         --job-id "$JOBID" 2>&1)
-  RUN_RC=$?
-  echo "[worker] runner exit code: $RUN_RC"
-  echo "[worker] runner output: $RESPONSE"
-  if [[ $RUN_RC -ne 0 ]]; then
-    echo "[worker] ERROR: runner failed, sleeping 10s and skipping delete-message"
+         --job-id "$JOBID"
+  RC=$?
+  set +x
+  echo "[worker] <<< runner finished with exit code $RC"
+  if [[ $RC -ne 0 ]]; then
+    echo "[worker] ERROR: runner failed, check above logs for stack trace"
+    echo "[worker] DEBUG: PACS_INFO=$PACS_INFO, PACS_API_BASE=$PACS_API_BASE, PACS_API_KEY=$PACS_API_KEY, CLIENT_ID=$CLIENT_ID, RESULT_QUEUE=$RESULT_QUEUE, OUTPUT_BUCKET=$OUTPUT_BUCKET, ALGO_ID=$ALGO_ID, JOBID=$JOBID"
     sleep 10
     continue
   fi
-  echo "[worker] runner finished."
 
   # 4. cancella il messaggio dalla coda
 

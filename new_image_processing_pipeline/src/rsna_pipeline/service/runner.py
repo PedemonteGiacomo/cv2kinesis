@@ -42,12 +42,18 @@ def _get_presigned_from_pacs(pacs: dict[str, str]) -> list[dict]:
     scope = pacs.get("scope", "image")
     if scope == "image":
         ep = f"{base}/studies/{pacs['study_id']}/images/{pacs['image_id']}"
-        return [requests.get(ep, headers=hdrs, timeout=10).json()]
+        r = requests.get(ep, headers=hdrs, timeout=10)
+        print(f"[runner] GET {ep} → {r.status_code}")
+        r.raise_for_status()
+        return [r.json()]
     if scope == "series":
         ep = f"{base}/studies/{pacs['study_id']}/images"
-        return requests.get(
+        r = requests.get(
             ep, headers=hdrs, timeout=10, params={"series_id": pacs["series_id"]}
-        ).json()
+        )
+        print(f"[runner] GET {ep} → {r.status_code}")
+        r.raise_for_status()
+        return r.json()
     raise ValueError("scope non valido")
 
 
@@ -61,85 +67,142 @@ def _download(url: str, dst: Path) -> None:
 def main() -> None:
 
     print("[runner] START")
+    print(f"[runner] ENVIRONMENT: {dict(os.environ)}")
     try:
         args = parse()
         print(f"[runner] args: {args}")
+        print(f"[runner] ENV: PACS_INFO={os.environ.get('PACS_INFO')}, PACS_API_BASE={os.environ.get('PACS_API_BASE')}, PACS_API_KEY={os.environ.get('PACS_API_KEY')}, CLIENT_ID={os.environ.get('CLIENT_ID')}, RESULTS_TOPIC_ARN={os.environ.get('RESULTS_TOPIC_ARN')}")
         s3 = boto3.client("s3")
 
         with tempfile.TemporaryDirectory() as tmp:
             print(f"[runner] tempdir: {tmp}")
-            pacs_info = json.loads(os.environ["PACS_INFO"])
-            print(f"[runner] PACS_INFO: {pacs_info}")
-            files = _get_presigned_from_pacs(pacs_info)
-            print(f"[runner] presigned files: {files}")
-            if len(files) == 1:
-                dst = Path(tmp) / Path(urlparse(files[0]["url"]).path).name
-                print(f"[runner] downloading image to {dst}")
-                _download(files[0]["url"], dst)
-                print(f"[runner] downloaded: {dst}")
-                img, src_ds = load_dicom(dst)
-                is_series = False
-                base_name = Path(dst).stem
-            else:
-                series_dir = Path(tmp) / "series"
-                series_dir.mkdir()
-                for f in files:
-                    print(f"[runner] downloading series file: {f['url']}")
-                    _download(f["url"], series_dir / Path(urlparse(f["url"]).path).name)
-                img, src_ds = load_series(series_dir)
-                is_series = True
-                base_name = pacs_info.get("series_id", str(uuid.uuid4()))
+            print(f"[runner] DEBUG: job_id={args.job_id}, algo={args.algo}, s3_output={args.s3_output}")
+            try:
+                pacs_info_raw = os.environ["PACS_INFO"]
+                print(f"[runner] PACS_INFO raw: {pacs_info_raw}")
+                pacs_info = json.loads(pacs_info_raw)
+                print(f"[runner] PACS_INFO loaded: {pacs_info}")
+            except Exception as e:
+                print(f"[runner] ERROR loading PACS_INFO: {e}")
+                import traceback; traceback.print_exc()
+                raise
 
-            print(f"[runner] running processor: {args.algo}")
-            proc = Processor.factory(args.algo)
-            print(f"[runner] processor instance: {proc}")
-            res = proc.run(img)
-            print(f"[runner] result: {res}")
-            mask_u8 = (res["mask"] > 0).astype(np.uint8) * 255
+            try:
+                print(f"[runner] DEBUG: calling _get_presigned_from_pacs with pacs_info={pacs_info}")
+                files = _get_presigned_from_pacs(pacs_info)
+                print(f"[runner] presigned files: {files}")
+            except Exception as e:
+                print(f"[runner] ERROR during PACS download: {e}")
+                import traceback; traceback.print_exc()
+                raise
 
-            out_name = f"{base_name}_{args.algo}.dcm"
-            out_path = Path(tmp) / out_name
-            print(f"[runner] saving DICOM: {out_path}")
-            save_secondary_capture(
-                mask_u8, src_ds, out_path, algo_id=args.algo, is_series=is_series
-            )
+            try:
+                print(f"[runner] DEBUG: files to download: {files}")
+                if len(files) == 1:
+                    dst = Path(tmp) / Path(urlparse(files[0]["url"]).path).name
+                    print(f"[runner] downloading image to {dst} from {files[0]['url']}")
+                    _download(files[0]["url"], dst)
+                    print(f"[runner] downloaded: {dst}")
+                    img, src_ds = load_dicom(dst)
+                    print(f"[runner] loaded DICOM: img shape={getattr(img, 'shape', None)}, src_ds={src_ds}")
+                    is_series = False
+                    base_name = Path(dst).stem
+                else:
+                    series_dir = Path(tmp) / "series"
+                    series_dir.mkdir()
+                    for f in files:
+                        print(f"[runner] downloading series file: {f['url']} to {series_dir / Path(urlparse(f['url']).path).name}")
+                        _download(f["url"], series_dir / Path(urlparse(f["url"]).path).name)
+                    img, src_ds = load_series(series_dir)
+                    print(f"[runner] loaded series: img shape={getattr(img, 'shape', None)}, src_ds={src_ds}")
+                    is_series = True
+                    base_name = pacs_info.get("series_id", str(uuid.uuid4()))
+            except Exception as e:
+                print(f"[runner] ERROR during DICOM download/parsing: {e}")
+                import traceback; traceback.print_exc()
+                raise
 
-            dest_key = f"{args.job_id}/{out_name}"
-            print(f"[runner] uploading to S3: bucket={args.s3_output} key={dest_key}")
-            s3.upload_file(str(out_path), args.s3_output, dest_key)
+            try:
+                print(f"[runner] running processor: {args.algo} on img shape={getattr(img, 'shape', None)}")
+                proc = Processor.factory(args.algo)
+                print(f"[runner] processor instance: {proc}")
+                res = proc.run(img)
+                print(f"[runner] result: {res}")
+                mask_u8 = (res["mask"] > 0).astype(np.uint8) * 255
+                print(f"[runner] mask_u8 shape: {getattr(mask_u8, 'shape', None)}")
+            except Exception as e:
+                print(f"[runner] ERROR during processing: {e}")
+                import traceback; traceback.print_exc()
+                raise
 
-            presigned = s3.generate_presigned_url(
-                "get_object",
-                Params={"Bucket": args.s3_output, "Key": dest_key},
-                ExpiresIn=86_400,
-            )
-            print(f"[runner] presigned result url: {presigned}")
-
-            # Pubblica su SNS Topic con attributo client_id
-            if (results_topic_arn := os.getenv("RESULTS_TOPIC_ARN")):
-                print(f"[runner] sending result to SNS: {results_topic_arn}")
-                sns_client = boto3.client("sns")
-                # Recupera client_id dall'env
-                client_id = os.environ.get("CLIENT_ID", "unknown")
-                message = {
-                    "job_id": args.job_id,
-                    "algo_id": args.algo,
-                    "dicom": {
-                        "bucket": args.s3_output,
-                        "key": dest_key,
-                        "url": presigned,
-                    },
-                }
-                sns_client.publish(
-                    TopicArn=results_topic_arn,
-                    Message=json.dumps(message),
-                    MessageAttributes={
-                        "client_id": {
-                            "DataType": "String",
-                            "StringValue": client_id
-                        }
-                    }
+            try:
+                out_name = f"{base_name}_{args.algo}.dcm"
+                out_path = Path(tmp) / out_name
+                print(f"[runner] saving DICOM: {out_path} (algo={args.algo}, is_series={is_series})")
+                save_secondary_capture(
+                    mask_u8, src_ds, out_path, algo_id=args.algo, is_series=is_series
                 )
+                print(f"[runner] DICOM saved: {out_path}")
+            except Exception as e:
+                print(f"[runner] ERROR during DICOM save: {e}")
+                import traceback; traceback.print_exc()
+                raise
+
+            try:
+                dest_key = f"{args.job_id}/{out_name}"
+                print(f"[runner] uploading to S3: bucket={args.s3_output} key={dest_key} file={out_path}")
+                s3.upload_file(str(out_path), args.s3_output, dest_key)
+                print(f"[runner] S3 upload complete: s3://{args.s3_output}/{dest_key}")
+            except Exception as e:
+                print(f"[runner] ERROR during S3 upload: {e}")
+                import traceback; traceback.print_exc()
+                raise
+
+            try:
+                presigned = s3.generate_presigned_url(
+                    "get_object",
+                    Params={"Bucket": args.s3_output, "Key": dest_key},
+                    ExpiresIn=86_400,
+                )
+                print(f"[runner] presigned result url: {presigned}")
+            except Exception as e:
+                print(f"[runner] ERROR during presigned url generation: {e}")
+                import traceback; traceback.print_exc()
+                raise
+
+            try:
+                # Pubblica su SNS Topic con attributo client_id
+                if (results_topic_arn := os.getenv("RESULTS_TOPIC_ARN")):
+                    print(f"[runner] sending result to SNS: {results_topic_arn}")
+                    sns_client = boto3.client("sns")
+                    # Recupera client_id dall'env
+                    client_id = os.environ.get("CLIENT_ID", "unknown")
+                    message = {
+                        "job_id": args.job_id,
+                        "algo_id": args.algo,
+                        "dicom": {
+                            "bucket": args.s3_output,
+                            "key": dest_key,
+                            "url": presigned,
+                        },
+                    }
+                    print(f"[runner] SNS message: {json.dumps(message)}")
+                    print(f"[runner] SNS attributes: client_id={client_id}")
+                    resp = sns_client.publish(
+                        TopicArn=results_topic_arn,
+                        Message=json.dumps(message),
+                        MessageAttributes={
+                            "client_id": {
+                                "DataType": "String",
+                                "StringValue": client_id
+                            }
+                        }
+                    )
+                    print(f"[runner] SNS publish response: {resp}")
+            except Exception as e:
+                print(f"[runner] ERROR during SNS publish: {e}")
+                import traceback; traceback.print_exc()
+                raise
         print("[runner] END OK")
     except Exception as e:
         print(f"[runner] ERROR: {e}", flush=True)
