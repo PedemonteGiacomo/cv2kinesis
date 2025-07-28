@@ -23,8 +23,8 @@ function App() {
   async function provision() {
     const cid = uuid();
     setStatus('provisioning');
-    // endpoint provisioning dipende dall'algoritmo
-    const res = await fetch(`${API_BASE}/provision/${algorithm}`, {
+    // provisioning sempre su /provision
+    const res = await fetch(`${API_BASE}/provision`, {
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body: JSON.stringify({client_id: cid})
