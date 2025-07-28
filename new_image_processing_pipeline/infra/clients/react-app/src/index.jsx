@@ -15,14 +15,16 @@ function App() {
   // parametri PACS
   const [studyId,   setStudyId]   = useState('liver1/phantomx_abdomen_pelvis_dataset/D55-01');
   const [seriesId,  setSeriesId]  = useState('300/AiCE_BODY-SHARP_300_172938.900');
-  const [imageId,   setImageId]   = useState('IM-0135-0001.dcm');
+  const [imageId,   setImageId]   = useState('IM-0135-0095.dcm'); // default test image
   const [scope,     setScope]     = useState('image');
   const [previewUrl,setPreviewUrl]= useState(null);
+  const [algorithm, setAlgorithm] = useState('processing_1'); // default algorithm
 
   async function provision() {
     const cid = uuid();
     setStatus('provisioning');
-    const res = await fetch(`${API_BASE}/provision`, {
+    // endpoint provisioning dipende dall'algoritmo
+    const res = await fetch(`${API_BASE}/provision/${algorithm}`, {
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body: JSON.stringify({client_id: cid})
@@ -49,7 +51,7 @@ function App() {
       callback: { client_id: clientId, queue_url: queueUrl }
     };
     console.log("Job payload:", payload);
-    await fetch(`${API_BASE}/process/processing_1`, {
+    await fetch(`${API_BASE}/process/${algorithm}`, {
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body: JSON.stringify(payload)
@@ -75,6 +77,15 @@ function App() {
       <h1>🖼️ Test Pipeline</h1>
       {status==='idle' &&
         <>
+          <div style={{marginBottom:'1em'}}>
+            <label>Algoritmo:</label>
+            <select value={algorithm} onChange={e=>setAlgorithm(e.target.value)} style={{width:'100%'}}>
+              <option value="processing_1">Processing 1</option>
+              <option value="processing_6">Processing 6</option>
+              <option value="base">Base</option>
+              {/* aggiungi altri algoritmi se necessario */}
+            </select>
+          </div>
           <button onClick={provision}>Provisiona coda</button>
           <div style={{margin:'1em 0'}}>
             <h2>📂 Anteprima PACS</h2>
