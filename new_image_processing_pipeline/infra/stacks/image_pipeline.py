@@ -80,6 +80,7 @@ class ImagePipeline(Stack):
             )
             request_queues[algo].grant_consume_messages(task.task_role)
             out_bucket.grant_put(task.task_role)
+            out_bucket.grant_read(task.task_role)
             # Permesso per inviare a tutte le queue client dinamiche
             task.task_role.add_to_policy(iam.PolicyStatement(
                 actions=["sqs:SendMessage"],
