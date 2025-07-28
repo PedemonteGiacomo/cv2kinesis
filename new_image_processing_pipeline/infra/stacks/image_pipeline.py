@@ -17,6 +17,7 @@ from aws_cdk import (
 )
 from constructs import Construct
 import json
+import os
 
 
 class ImagePipeline(Stack):
@@ -121,6 +122,35 @@ class ImagePipeline(Stack):
                "RESULT_URLS_JSON": json.dumps(result_url_map)
             }
         )
+        # Lambda di provisioning per /provision
+        provision = _lambda.Function(
+            self, "ProvisionFunction",
+            runtime=_lambda.Runtime.PYTHON_3_11,
+            handler="provision.lambda_handler",
+            code=_lambda.Code.from_asset(os.path.join(os.path.dirname(__file__), "../lambda")),
+            environment={"RESULTS_TOPIC_ARN": results_topic.topic_arn}
+        )
+        # Permetti a provision di creare code e sottoscrizioni SNS
+        results_topic.grant_publish(provision)
+        provision.add_to_role_policy(iam.PolicyStatement(
+            actions=[
+                "sqs:CreateQueue","sqs:GetQueueAttributes","sqs:SetQueueAttributes",
+                "sns:Subscribe"
+            ],
+            resources=["*"]
+        ))
+        # Lambda proxy SQS per polling HTTP
+        # Espone /proxy-sqs su API Gateway per polling SQS via HTTP puro (frontend/browser)
+        proxy = _lambda.Function(
+            self, "ProxySqsFunction",
+            runtime=_lambda.Runtime.PYTHON_3_11,
+            handler="proxy_sqs.lambda_handler",
+            code=_lambda.Code.from_asset(os.path.join(os.path.dirname(__file__), "../lambda")),
+        )
+        proxy.add_to_role_policy(iam.PolicyStatement(
+            actions=["sqs:ReceiveMessage","sqs:DeleteMessage"],
+            resources=["*"]
+        ))
 
         for rq in request_queues.values():
             rq.grant_send_messages(router)
@@ -138,6 +168,12 @@ class ImagePipeline(Stack):
         proc = api.root.add_resource("process")
         algo = proc.add_resource("{algo_id}")
         algo.add_method("POST", apigw.LambdaIntegration(router))
+        # Endpoint /provision per provisioning dinamico
+        prov = api.root.add_resource("provision")
+        prov.add_method("POST", apigw.LambdaIntegration(provision))
+        # Endpoint /proxy-sqs per polling SQS via HTTP (usato dal frontend React)
+        ps = api.root.add_resource("proxy-sqs")
+        ps.add_method("GET", apigw.LambdaIntegration(proxy))
 
         for algo in algos:
             CfnOutput(self, f"ImageRequestsQueueUrl{algo}", value=request_queues[algo].queue_url)

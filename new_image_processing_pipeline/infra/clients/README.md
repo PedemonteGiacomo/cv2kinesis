@@ -34,6 +34,76 @@ class ClientResultsStack(Stack):
         CfnOutput(self, "ClientResultsQueueArn", value=queue.queue_arn)
 ```
 
+## Come lanciare lo stack client e testare il flusso
+
+### 1. Deploy della coda SQS del client e subscription SNS
+
+Apri un terminale nella cartella `infra/clients` e lancia:
+
+```powershell
+cd infra/clients
+cdk deploy --app "python app.py my-client-123 arn:aws:sns:eu-central-1:123456789012:ImageResultsTopic" --require-approval never
+```
+
+- Sostituisci `my-client-123` con il tuo client_id.
+- Sostituisci l'ARN con quello reale del topic SNS (lo trovi negli output CloudFormation del deploy principale).
+
+Negli output troverai l'URL della tua coda SQS dedicata.
+
+---
+
+### 2. Invio job HTTP con client_id
+
+Usa lo script PowerShell `send-http-job.ps1`:
+
+```powershell
+cd infra/clients
+.\send-http-job.ps1 -Region eu-central-1 -ApiEndpoint https://<api_id>.execute-api.eu-central-1.amazonaws.com/prod -ClientId my-client-123
+```
+
+Il campo `callback.client_id` identifica la tua coda per la ricezione del risultato.
+
+---
+
+### 3. Ricezione risultati
+
+### Opzione 1: AWS CLI
+
+Leggi i messaggi dalla tua coda SQS (es: `my-client-123Results.fifo`):
+
+```powershell
+aws sqs receive-message --queue-url <ClientResultsQueueUrl> --max-number-of-messages 1
+```
+
+### Opzione 2: HTTP via Lambda proxy-sqs (consigliato per frontend)
+
+Chiama l'endpoint HTTP del tuo API Gateway:
+
+```http
+GET https://<api_id>.execute-api.eu-central-1.amazonaws.com/prod/proxy-sqs?queue=<ClientResultsQueueUrl>
+```
+
+Risposta: array di messaggi (già cancellati dalla coda).
+
+Esempio in React:
+```js
+const res = await fetch(`${API_BASE}/proxy-sqs?queue=${encodeURIComponent(queueUrl)}`);
+const msgs = await res.json();
+```
+
+Ogni messaggio contiene:
+- `job_id`, `algo_id`, `dicom` (bucket, key, url)
+
+Solo i job con il tuo `client_id` arrivano sulla tua coda, in ordine FIFO per job.
+
+---
+
+**Vantaggi:**
+- Ogni client riceve solo i propri risultati.
+- Nessun rischio di consumare job altrui.
+- Scalabilità e isolamento garantiti.
+- Accesso HTTP puro, ideale per frontend/browser.
+
 ## 2. Invio job HTTP con client_id
 
 Usa lo script PowerShell `send-http-job.ps1`:
