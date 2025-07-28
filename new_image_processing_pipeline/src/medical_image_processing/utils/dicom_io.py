@@ -6,8 +6,8 @@ import numpy as np
 import pydicom
 
 
-def load_dicom(path: str | Path) -> tuple[np.ndarray, dict]:
-    """Load a DICOM file and return the pixel data in HU and basic metadata."""
+def load_dicom(path: str | Path) -> tuple[np.ndarray, pydicom.Dataset]:
+    """Load a DICOM file and return the pixel data in HU and the full DICOM dataset."""
     ds = pydicom.dcmread(str(path))
     img = ds.pixel_array.astype(np.int16)
 
@@ -15,9 +15,4 @@ def load_dicom(path: str | Path) -> tuple[np.ndarray, dict]:
     intercept = getattr(ds, "RescaleIntercept", 0.0)
     img = img * slope + intercept
 
-    meta = {
-        "PatientID": ds.get("PatientID", "NA"),
-        "PixelSpacing": ds.get("PixelSpacing", [1, 1]),
-        "StudyInstanceUID": ds.get("StudyInstanceUID", "NA"),
-    }
-    return img, meta
+    return img, ds
