@@ -62,7 +62,7 @@ while true; do
   echo "[worker] PACS_INFO: $(echo "$BODY" | jq -c '.pacs')"
   echo "[worker] PACS_API_BASE: $PACS_API_BASE"
   echo "[worker] PACS_API_KEY: $PACS_API_KEY"
-  echo "[worker] CLIENT_ID: $CLIENT_ID"
+  echo "[worker] CLIENT_ID: ${CLIENT_ID:-<unset>}"
   echo "[worker] RESULT_QUEUE: $RESULT_QUEUE"
   JOBID=$(echo "$BODY" | jq -r .job_id 2>&1)
   if [[ $? -ne 0 ]]; then
