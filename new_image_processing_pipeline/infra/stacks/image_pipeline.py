@@ -38,20 +38,6 @@ class ImagePipeline(Stack):
         cluster = ecs.Cluster(self, "ImgCluster", vpc=vpc)
 
         out_bucket = s3.Bucket(self, "Output", removal_policy=RemovalPolicy.DESTROY)
-
-        # 1️⃣ Crea il Topic SNS per i risultati
-        results_topic = sns.Topic(self, "ImageResultsTopic", topic_name="ImageResultsTopic.fifo", fifo=True, content_based_deduplication=True)
-
-        # Una coda risultati dedicata per ogni algoritmo
-        result_queues = {}
-        for algo in algos:
-            result_queues[algo] = sqs.Queue(
-                self,
-                f"ImageResults{algo}.fifo",
-                fifo=True,
-                content_based_deduplication=True,
-            )
-
         request_queues = {}
         for algo in algos:
             rq = sqs.Queue(
@@ -79,8 +65,6 @@ class ImagePipeline(Stack):
                 environment={
                     "QUEUE_URL": request_queues[algo].queue_url,
                     "OUTPUT_BUCKET": out_bucket.bucket_name,
-                    "RESULT_QUEUE": result_queues[algo].queue_url,
-                    "RESULTS_TOPIC_ARN": results_topic.topic_arn,
                     "ALGO_ID": algo,
                     "PACS_API_BASE": pacs_api_url if pacs_api_url else "",
                     "PACS_API_KEY":  "devkey",
@@ -93,13 +77,14 @@ class ImagePipeline(Stack):
                 f"Svc{algo}",
                 cluster=cluster,
                 task_definition=task,
-                desired_count=1,
             )
-
             request_queues[algo].grant_consume_messages(task.task_role)
-            result_queues[algo].grant_send_messages(task.task_role)
             out_bucket.grant_put(task.task_role)
-            results_topic.grant_publish(task.task_role)
+            # Permesso per inviare a tutte le queue client dinamiche
+            task.task_role.add_to_policy(iam.PolicyStatement(
+                actions=["sqs:SendMessage"],
+                resources=["arn:aws:sqs:*:*:ClientResults-*"]
+            ))
 
             svc.auto_scale_task_count(min_capacity=1, max_capacity=10).scale_on_metric(
                 f"Scale{algo}",
@@ -110,7 +95,6 @@ class ImagePipeline(Stack):
         # Lambda Router & API Gateway
 
         queue_url_map = { algo: rq.queue_url for algo, rq in request_queues.items() }
-        result_url_map = { algo: rq.queue_url for algo, rq in result_queues.items() }
 
         router = _lambda.Function(
             self, "RouterFunction",
@@ -118,8 +102,7 @@ class ImagePipeline(Stack):
             handler="router.lambda_handler",
             code=_lambda.Code.from_asset(os.path.join(os.path.dirname(__file__), "../lambda")),
             environment={
-               "QUEUE_URLS_JSON": json.dumps(queue_url_map),
-               "RESULT_URLS_JSON": json.dumps(result_url_map)
+               "QUEUE_URLS_JSON": json.dumps(queue_url_map)
             }
         )
         # Lambda di provisioning per /provision
@@ -128,19 +111,14 @@ class ImagePipeline(Stack):
             runtime=_lambda.Runtime.PYTHON_3_11,
             handler="provision.lambda_handler",
             code=_lambda.Code.from_asset(os.path.join(os.path.dirname(__file__), "../lambda")),
-            environment={"RESULTS_TOPIC_ARN": results_topic.topic_arn}
         )
-        # Permetti a provision di creare code e sottoscrizioni SNS
-        results_topic.grant_publish(provision)
         provision.add_to_role_policy(iam.PolicyStatement(
             actions=[
-                "sqs:CreateQueue","sqs:GetQueueAttributes","sqs:SetQueueAttributes",
-                "sns:Subscribe"
+                "sqs:CreateQueue","sqs:GetQueueAttributes","sqs:SetQueueAttributes"
             ],
             resources=["*"]
         ))
         # Lambda proxy SQS per polling HTTP
-        # Espone /proxy-sqs su API Gateway per polling SQS via HTTP puro (frontend/browser)
         proxy = _lambda.Function(
             self, "ProxySqsFunction",
             runtime=_lambda.Runtime.PYTHON_3_11,
@@ -153,8 +131,6 @@ class ImagePipeline(Stack):
         ))
 
         for rq in request_queues.values():
-            rq.grant_send_messages(router)
-        for rq in result_queues.values():
             rq.grant_send_messages(router)
 
         api = apigw.RestApi(self, "ProcessingApi",
@@ -177,9 +153,5 @@ class ImagePipeline(Stack):
 
         for algo in algos:
             CfnOutput(self, f"ImageRequestsQueueUrl{algo}", value=request_queues[algo].queue_url)
-            CfnOutput(self, f"ImageResultsQueueUrl{algo}", value=result_queues[algo].queue_url)
         CfnOutput(self, "OutputBucketName",    value=out_bucket.bucket_name)
-        # Output per SNS Topic ARN
-        CfnOutput(self, "ImageResultsTopicArn", value=results_topic.topic_arn)
-        # Output per API Gateway endpoint
         CfnOutput(self, "ProcessingApiEndpoint", value=api.url)

@@ -171,36 +171,32 @@ def main() -> None:
                 raise
 
             try:
-                # Pubblica su SNS Topic con attributo client_id
-                if (results_topic_arn := os.getenv("RESULTS_TOPIC_ARN")):
-                    print(f"[runner] sending result to SNS: {results_topic_arn}")
-                    sns_client = boto3.client("sns")
-                    # Recupera client_id dall'env
-                    client_id = os.environ.get("CLIENT_ID", "unknown")
-                    message = {
-                        "job_id": args.job_id,
-                        "algo_id": args.algo,
-                        "dicom": {
-                            "bucket": args.s3_output,
-                            "key": dest_key,
-                            "url": presigned,
-                        },
-                    }
-                    print(f"[runner] SNS message: {json.dumps(message)}")
-                    print(f"[runner] SNS attributes: client_id={client_id}")
-                    resp = sns_client.publish(
-                        TopicArn=results_topic_arn,
-                        Message=json.dumps(message),
-                        MessageAttributes={
-                            "client_id": {
-                                "DataType": "String",
-                                "StringValue": client_id
-                            }
+                # Invia direttamente in SQS sulla coda callback fornita dal client
+                sqs_client = boto3.client("sqs")
+                message = {
+                    "job_id": args.job_id,
+                    "algo_id": args.algo,
+                    "dicom": {
+                        "bucket": args.s3_output,
+                        "key": dest_key,
+                        "url": presigned,
+                    },
+                }
+                print(f"[runner] sending result to SQS: {os.environ['RESULT_QUEUE']}")
+                print(f"[runner] SQS message: {json.dumps(message)}")
+                resp = sqs_client.send_message(
+                    QueueUrl=os.environ["RESULT_QUEUE"],
+                    MessageBody=json.dumps(message),
+                    MessageAttributes={
+                        "client_id": {
+                            "DataType": "String",
+                            "StringValue": os.environ.get("CLIENT_ID","unknown")
                         }
-                    )
-                    print(f"[runner] SNS publish response: {resp}")
+                    }
+                )
+                print(f"[runner] SQS send_message response: {resp}")
             except Exception as e:
-                print(f"[runner] ERROR during SNS publish: {e}")
+                print(f"[runner] ERROR during SQS send_message: {e}")
                 import traceback; traceback.print_exc()
                 raise
         print("[runner] END OK")

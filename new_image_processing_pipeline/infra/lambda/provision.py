@@ -17,12 +17,6 @@ def lambda_handler(event, context):
         QueueUrl=url, AttributeNames=["QueueArn"]
     )["Attributes"]["QueueArn"]
     # ② sottoscrizione SNS → SQS con filter su client_id
-    sns.subscribe(
-      TopicArn=TOPIC_ARN,
-      Protocol="sqs",
-      Endpoint=arn,
-      Attributes={"FilterPolicy": json.dumps({"client_id":[client_id]})}
-    )
     # ③ autorizza SNS a scrivere in SQS
     policy = {
       "Version":"2012-10-17","Statement":[{  
