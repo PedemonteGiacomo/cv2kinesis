@@ -59,6 +59,7 @@ new_image_processing_pipeline/
 ```powershell
 cd infra/ecr
 ./create-ecr-repos.ps1 -Region <REGION> -Account <ACCOUNT_ID>
+docker build --no-cache -t mip-base:latest -f containers/base/Dockerfile . #se si vuole ripartire alla base senza cache
 ./push-algos.ps1 -Region <REGION> -Account <ACCOUNT_ID>
 ./push-pacs.ps1 -Region <REGION> -Account <ACCOUNT_ID>
 ```
