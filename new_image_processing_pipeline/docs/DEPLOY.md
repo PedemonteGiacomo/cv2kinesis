@@ -32,8 +32,7 @@
    Comandi essenziali da eseguire nella root di `new_image_processing_pipeline`:
 
    ```sh
-   # Costruisci l'immagine di base
-   docker build -t mip-base -f containers/base/Dockerfile .
+      docker build -t mip-base -f containers/base/Dockerfile .
    ```
 
    Per effettuare il deploy degli stack (utilizzando sempre le immagini più aggiornate):
