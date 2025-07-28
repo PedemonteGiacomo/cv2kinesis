@@ -37,16 +37,17 @@ function App() {
     const jid = uuid();
     setJobId(jid);
     setStatus('waiting');
+    // Usa i valori dallo stato React
     await fetch(`${API_BASE}/process/processing_1`, {
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body: JSON.stringify({
         job_id: jid,
         pacs: {
-          study_id,
-          series_id,
-          image_id,
-          scope
+          study_id: studyId,
+          series_id: seriesId,
+          image_id: imageId,
+          scope: scope
         },
         callback: { client_id: clientId }
       })
