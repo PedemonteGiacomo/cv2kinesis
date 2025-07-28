@@ -110,9 +110,8 @@ while true; do
   echo "[worker] RESULT_QUEUE: $RESULT_QUEUE"
 
   # 3. esegui l’algoritmo
-
-
   echo "[worker] >>> launching runner (streaming logs)…"
+  export PYTHONPATH="/app/src:$PYTHONPATH"
   set -x
   python -m rsna_pipeline.service.runner \
          --s3-output "$OUTPUT_BUCKET" \
