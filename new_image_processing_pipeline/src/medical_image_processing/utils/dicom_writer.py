@@ -36,7 +36,7 @@ def save_secondary_capture(
         "AccessionNumber",
     ):
         if tag in src_ds:
-            ds[tag] = src_ds[tag]
+            ds[tag] = src_ds.data_element(tag)
 
     ds.SeriesInstanceUID = generate_uid()
     ds.SeriesNumber = 999
