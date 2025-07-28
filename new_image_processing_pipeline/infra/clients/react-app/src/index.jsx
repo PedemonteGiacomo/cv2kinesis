@@ -49,7 +49,7 @@ function App() {
           image_id: imageId,
           scope: scope
         },
-        callback: { client_id: clientId }
+        callback: { client_id: clientId, queue_url: queueUrl }
       })
     });
     pollResult(jid);
