@@ -40,7 +40,7 @@ class ImagePipeline(Stack):
         out_bucket = s3.Bucket(self, "Output", removal_policy=RemovalPolicy.DESTROY)
 
         # 1️⃣ Crea il Topic SNS per i risultati
-        results_topic = sns.Topic(self, "ImageResultsTopic", topic_name="ImageResultsTopic")
+        results_topic = sns.Topic(self, "ImageResultsTopic", topic_name="ImageResultsTopic.fifo", fifo=True, content_based_deduplication=True)
 
         # Una coda risultati dedicata per ogni algoritmo
         result_queues = {}
