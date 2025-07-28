@@ -112,6 +112,10 @@ while true; do
   # 3. esegui l’algoritmo
   echo "[worker] >>> launching runner (streaming logs)…"
   export PYTHONPATH="/app/src:$PYTHONPATH"
+  echo "[worker] DEBUG: pwd=$(pwd)"
+  echo "[worker] DEBUG: PYTHONPATH=$PYTHONPATH"
+  echo "[worker] DEBUG: ls /app/src/medical_image_processing/processing:"
+  ls -l /app/src/medical_image_processing/processing || true
   set -x
   python -m rsna_pipeline.service.runner \
          --s3-output "$OUTPUT_BUCKET" \
