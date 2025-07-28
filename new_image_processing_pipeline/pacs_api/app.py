@@ -8,6 +8,15 @@ s3 = boto3.client("s3")
 
 app = FastAPI(title="PACS-API", version="0.1")
 
+# Abilita CORS per richieste dal frontend
+from fastapi.middleware.cors import CORSMiddleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["GET", "POST"],
+    allow_headers=["*"],
+)
+
 @app.get("/")
 def root():
     return {"status": "ok"}

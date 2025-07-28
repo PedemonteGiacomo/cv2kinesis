@@ -119,13 +119,8 @@ def main() -> None:
             if (results_topic_arn := os.getenv("RESULTS_TOPIC_ARN")):
                 print(f"[runner] sending result to SNS: {results_topic_arn}")
                 sns_client = boto3.client("sns")
-                # Recupera client_id dal callback
-                pacs_info_env = os.environ.get("PACS_INFO", "{}")
-                try:
-                    pacs_info = json.loads(pacs_info_env)
-                except Exception:
-                    pacs_info = {}
-                client_id = pacs_info.get("callback", {}).get("client_id", "unknown")
+                # Recupera client_id dall'env
+                client_id = os.environ.get("CLIENT_ID", "unknown")
                 message = {
                     "job_id": args.job_id,
                     "algo_id": args.algo,

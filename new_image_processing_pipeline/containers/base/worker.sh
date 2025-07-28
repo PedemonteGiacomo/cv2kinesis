@@ -78,6 +78,10 @@ while true; do
   if [[ $? -ne 0 ]]; then
     echo "[worker] ERROR: jq failed to parse pacs: $PACS_INFO"
   fi
+  export CLIENT_ID=$(echo "$BODY" | jq -r '.callback.client_id // "unknown"' 2>&1)
+  if [[ $? -ne 0 ]]; then
+    echo "[worker] ERROR: jq failed to parse callback.client_id: $CLIENT_ID"
+  fi
   export PACS_API_BASE=${PACS_API_BASE:-}
   export PACS_API_KEY=${PACS_API_KEY:-}
   CB=$(echo "$BODY" | jq -r '.callback.queue_url // empty' 2>&1)
@@ -86,6 +90,7 @@ while true; do
   fi
   export RESULT_QUEUE=${CB:-$RESULT_QUEUE}
   echo "[worker] PACS_INFO: $PACS_INFO"
+  echo "[worker] CLIENT_ID: $CLIENT_ID"
   echo "[worker] RESULT_QUEUE: $RESULT_QUEUE"
 
   # 3. esegui l’algoritmo
