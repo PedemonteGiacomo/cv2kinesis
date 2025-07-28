@@ -8,6 +8,7 @@ from aws_cdk import (
     aws_ecs as ecs,
     aws_applicationautoscaling as appscaling,
     aws_logs as logs,
+    aws_ecr as ecr,
     CfnOutput,
 )
 import time
@@ -22,6 +23,10 @@ class ImagePipeline(Stack):
         algos_param = self.node.try_get_context("algos")
         algos = (
             algos_param.split(",") if algos_param else ["processing_1", "processing_6"]
+        )
+
+        ecr_repo = ecr.Repository.from_repository_name(
+            self, "AlgosRepo", "mip-algos"
         )
 
         vpc = ec2.Vpc(self, "ImgVpc", max_azs=2)
@@ -56,13 +61,9 @@ class ImagePipeline(Stack):
             )
             task.add_container(
                 "Main",
-                image=ecs.ContainerImage.from_asset(
-                    os.path.abspath(
-                        os.path.join(
-                            os.path.dirname(__file__), "..", "..", "containers", algo
-                        )
-                    ),
-                    build_args={"REVISION": rev},
+                image=ecs.ContainerImage.from_ecr_repository(
+                    ecr_repo,
+                    tag=algo  # processing_1 o processing_6
                 ),
                 logging=ecs.LogDrivers.aws_logs(
                     stream_prefix=algo, log_retention=logs.RetentionDays.ONE_WEEK

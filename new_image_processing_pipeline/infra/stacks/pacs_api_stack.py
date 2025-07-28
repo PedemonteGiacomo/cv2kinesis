@@ -9,6 +9,7 @@ from aws_cdk import (
 from datetime import datetime as dt
 from constructs import Construct
 import os, pathlib
+from aws_cdk import aws_ecr as ecr
 
 class PacsApiStack(Stack):
     def __init__(self, scope: Construct, id: str, *, bucket, **kw):
@@ -18,11 +19,13 @@ class PacsApiStack(Stack):
 
         cluster = ecs.Cluster(self, "PacsCluster", vpc=vpc)
 
-        img = ecs.ContainerImage.from_asset(
-            "../pacs_api",
-            build_args={
-                "REVISION": dt.utcnow().strftime("%Y%m%d%H%M%S")
-            },
+        pacs_repo = ecr.Repository.from_repository_name(
+            self, "PacsRepo", "pacs-ecr"
+        )
+
+        img = ecs.ContainerImage.from_ecr_repository(
+            pacs_repo,
+            tag="latest"
         )
 
         svc = patterns.ApplicationLoadBalancedFargateService(
