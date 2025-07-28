@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
+import DicomViewer from './DicomViewer';
 import { createRoot } from 'react-dom/client';
 import { v4 as uuid } from 'uuid';
 
-const API_BASE = '<YOUR_API_GATEWAY_BASE>'; // es: https://xyz.execute-api.eu-central-1.amazonaws.com/prod
-const PACS_BASE = '<YOUR_PACS_API_BASE>';   // es: https://abc-123.eu-central-1.elb.amazonaws.com
+const API_BASE  = (process.env.REACT_APP_API_BASE || '<default>').replace(/\/$/, '');
+const PACS_BASE = process.env.REACT_APP_PACS_BASE   || '<default>';
 
 function App() {
   const [clientId, setClientId] = useState(null);
@@ -103,8 +104,8 @@ function App() {
               Carica Anteprima
             </button>
             {previewUrl && <div style={{marginTop:10}}>
-              <h3>Anteprima:</h3>
-              <img src={previewUrl} alt="PACS preview" style={{maxWidth:'100%'}}/>
+              <h3>Anteprima DICOM:</h3>
+              <DicomViewer url={previewUrl} />
             </div>}
           </div>
         </>

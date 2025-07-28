@@ -25,6 +25,10 @@ def lambda_handler(event, context):
     )
     return {
         "statusCode": 202,
+        "headers": {
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Headers": "Content-Type"
+        },
         "body": json.dumps({
             "message":"Enqueued",
             "sqs_message_id":resp["MessageId"],

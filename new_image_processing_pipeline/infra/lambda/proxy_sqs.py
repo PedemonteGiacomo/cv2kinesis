@@ -27,6 +27,9 @@ def lambda_handler(event, context):
         sqs.delete_message(QueueUrl=queue_url, ReceiptHandle=m["ReceiptHandle"])
     return {
         "statusCode":200,
-        "headers":{"Access-Control-Allow-Origin":"*"},
+        "headers":{
+            "Access-Control-Allow-Origin":"*",
+            "Access-Control-Allow-Headers": "Content-Type"
+        },
         "body": json.dumps(bodies)
     }
