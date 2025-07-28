@@ -37,7 +37,7 @@ class ImagePipeline(Stack):
         vpc = ec2.Vpc(self, "ImgVpc", max_azs=2)
         cluster = ecs.Cluster(self, "ImgCluster", vpc=vpc)
 
-        out_bucket = s3.Bucket(self, "Output", removal_policy=RemovalPolicy.DESTROY)
+        out_bucket = s3.Bucket(self, "Output", removal_policy=RemovalPolicy.RETAIN)
         request_queues = {}
         for algo in algos:
             rq = sqs.Queue(
