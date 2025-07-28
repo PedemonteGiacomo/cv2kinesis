@@ -130,7 +130,7 @@ function App() {
       {status==='done' &&
         <div>
           <h2>✅ Risultato Processato</h2>
-          <img src={result.dicom.url} alt="Processed result" style={{maxWidth:'100%'}}/>
+          <DicomViewer url={result.dicom.url} />
         </div>
       }
     </div>
