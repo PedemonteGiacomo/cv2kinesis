@@ -17,10 +17,14 @@ cdk deploy ImgPipeline --require-approval never
 cdk deploy PacsApiStack --require-approval never
 ```
 
-> Ora CDK non ricostruisce più le immagini in locale, ma usa quelle già presenti in ECR. Il deploy sarà molto più veloce.
 
 ---
 
 **Nota:**
 - Modifica gli script PowerShell se cambi regione/account.
 - Se aggiorni il codice delle immagini, ricostruisci e ripusha prima di ridistribuire con CDK.
+
+---
+
+## API Gateway & Lambda router
+L'endpoint REST `/process/{algo_id}` è esposto tramite API Gateway e gestito da una Lambda che inoltra i job alle code SQS corrette. Consulta `clients/send-http-job.ps1` per un esempio di invio job via HTTP.

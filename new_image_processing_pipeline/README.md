@@ -1,34 +1,51 @@
+
 # Image Processing Pipeline
 
-This package contains containers and infrastructure for event-driven image processing.
+Questa repository contiene i container, la logica e l'infrastruttura per una pipeline di image processing event-driven su AWS.
 
-## Build images
+## Architettura aggiornata
 
-```bash
-make build-base
-make build-algos
+**Client → API Gateway → Lambda Router → SQS → Fargate → SQS Results**
+
+Il client invia una richiesta HTTP POST a `/process/{algo_id}` su API Gateway. La Lambda "router" valida e inoltra il job sulla coda SQS corretta. I worker Fargate processano i job e scrivono i risultati su SQS.
+
+### Esempio di richiesta
+
+```http
+POST https://<api_id>.execute-api.<region>.amazonaws.com/prod/process/processing_6
+Content-Type: application/json
+
+{
+  "job_id": "uuid4",
+  "pacs": {"study_id": "1.2.3", "series_id": "4.5.6", "image_id": "7.8.9", "scope": "image"},
+  "callback": {"queue_url": "https://sqs.eu-central-1.amazonaws.com/123456/ImageResults.fifo"}
+}
 ```
 
-## Run PACS simulator
+Risposta:
+
+```json
+{
+  "message": "Enqueued",
+  "sqs_message_id": "..."
+}
+```
+
+## Build & Deploy
+
+Consulta `infra/README.md` per la procedura aggiornata di build, push su ECR e deploy CDK.
+
+## Script client di esempio
+
+Vedi `infra/clients/send-http-job.ps1` per inviare job via PowerShell.
+
+## PACS simulator
 
 ```bash
 docker build -t pacs-sim pacs_api_sim
 docker run -p 8000:8000 -e AWS_ACCESS_KEY_ID=... -e AWS_SECRET_ACCESS_KEY=... pacs-sim
 ```
 
-## Send a test job
-
-```bash
-python simulate_request.py
-```
-
-Message format:
-
-```jsonc
-{
-  "job_id": "uuid4",
-  "algo_id": "processing_6",
-  "pacs": {"study_id": "1.2.3", "series_id": "4.5.6", "image_id": "7.8.9", "scope": "image"},
-  "callback": {"queue_url": "https://sqs.eu-central-1.amazonaws.com/123456/ImageResults.fifo"}
-}
-```
+## Note
+- I worker Fargate non leggono più direttamente da SQS, ma ricevono job inoltrati dalla Lambda router.
+- Per estendere la pipeline o aggiungere algoritmi, consulta `src/medical_image_processing/README.md`.

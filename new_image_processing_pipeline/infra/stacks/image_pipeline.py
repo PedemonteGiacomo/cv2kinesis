@@ -10,10 +10,11 @@ from aws_cdk import (
     aws_logs as logs,
     aws_ecr as ecr,
     CfnOutput,
+    aws_lambda as _lambda,
+    aws_apigateway as apigw
 )
-import time
 from constructs import Construct
-import os
+import json
 
 
 class ImagePipeline(Stack):
@@ -41,8 +42,6 @@ class ImagePipeline(Stack):
             fifo=True,
             content_based_deduplication=True,
         )
-
-        rev = str(int(time.time()))  # epoch, cambia ad ogni deploy
 
         request_queues = {}
         for algo in algos:
@@ -97,6 +96,33 @@ class ImagePipeline(Stack):
                 scaling_steps=[{"upper": 0, "change": -1}, {"lower": 1, "change": 1}],
                 adjustment_type=appscaling.AdjustmentType.CHANGE_IN_CAPACITY,
             )
+        # Lambda Router & API Gateway
+        queue_url_map = { algo: rq.queue_url for algo, rq in request_queues.items() }
+
+        router = _lambda.Function(
+            self, "RouterFunction",
+            runtime=_lambda.Runtime.PYTHON_3_11,
+            handler="router.lambda_handler",
+            code=_lambda.Code.from_asset(os.path.join(os.path.dirname(__file__), "../lambda")),
+            environment={
+               "QUEUE_URLS_JSON": json.dumps(queue_url_map)
+            }
+        )
+
+        for rq in request_queues.values():
+            rq.grant_send_messages(router)
+
+        api = apigw.RestApi(self, "ProcessingApi",
+            rest_api_name="ImageProcessing API",
+            default_cors_preflight_options=apigw.CorsOptions(
+              allow_origins=apigw.Cors.ALL_ORIGINS,
+              allow_methods=apigw.Cors.ALL_METHODS
+            )
+        )
+
+        proc = api.root.add_resource("process")
+        algo = proc.add_resource("{algo_id}")
+        algo.add_method("POST", apigw.LambdaIntegration(router))
 
         for algo in algos:
             CfnOutput(self, f"ImageRequestsQueueUrl{algo}", value=request_queues[algo].queue_url)

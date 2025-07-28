@@ -42,3 +42,8 @@ docker run --rm -v $(pwd)/data:/data -v $(pwd)/results:/app/output \
 ```
 
 This builds the container with the required dependencies and executes the chosen algorithm on all DICOM files under `/data`.
+
+---
+
+## Integrazione con la pipeline cloud
+Gli algoritmi vengono ora invocati tramite messaggi SQS generati dalla Lambda router (vedi `infra/lambda/router.py`). Per testare la pipeline end-to-end, invia una richiesta HTTP all'API Gateway come descritto nella documentazione principale.

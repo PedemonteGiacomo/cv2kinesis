@@ -43,3 +43,8 @@ curl "http://$env:PACS_API_LB/studies/liver2/phantomx_abdomen_lesion_dataset/D53
 ## Note
 - Puoi cambiare i path per accedere a qualsiasi file DICOM presente nel bucket.
 - La risposta sarà sempre un JSON con campo `url` (presigned) e, per la lista, anche `key`.
+
+---
+
+## Integrazione con la pipeline di processing
+Le chiamate alle PACS API sono ora integrate nella pipeline tramite API Gateway e Lambda router. Per inviare job di processing, consulta la documentazione principale e gli script client in `infra/clients`.
