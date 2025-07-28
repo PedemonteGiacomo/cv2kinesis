@@ -58,11 +58,20 @@ while true; do
     continue
   fi
   echo "[worker] message BODY: $BODY"
+  # Parsing e export delle variabili fondamentali
+  export CLIENT_ID=$(echo "$BODY" | jq -r '.callback.client_id // "unknown"')
+  if [[ -z "$CLIENT_ID" || "$CLIENT_ID" == "unknown" ]]; then
+    echo "[worker] ERROR: CLIENT_ID not found in message body!"; exit 1
+  fi
+  export RESULT_QUEUE=$(echo "$BODY" | jq -r '.callback.queue_url // empty')
+  if [[ -z "$RESULT_QUEUE" ]]; then
+    echo "[worker] ERROR: RESULT_QUEUE not found in message body!"; exit 1
+  fi
   # Debug: mostra variabili ambiente usate dal runner
   echo "[worker] PACS_INFO: $(echo "$BODY" | jq -c '.pacs')"
   echo "[worker] PACS_API_BASE: $PACS_API_BASE"
   echo "[worker] PACS_API_KEY: $PACS_API_KEY"
-  echo "[worker] CLIENT_ID: ${CLIENT_ID:-<unset>}"
+  echo "[worker] CLIENT_ID: $CLIENT_ID"
   echo "[worker] RESULT_QUEUE: $RESULT_QUEUE"
   JOBID=$(echo "$BODY" | jq -r .job_id 2>&1)
   if [[ $? -ne 0 ]]; then
