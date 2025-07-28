@@ -12,8 +12,10 @@ def lambda_handler(event, context):
         return {"statusCode": 404, "body": json.dumps({"error":"Unknown algorithm"})}
 
     body = json.loads(event["body"])
-    # Inietta la callback corretta
-    body["callback"] = {"queue_url": RESULT_URLS[algo]}
+    # Merge della callback: preserva client_id, aggiorna queue_url
+    callback = body.get("callback", {})
+    callback["queue_url"] = RESULT_URLS[algo]
+    body["callback"] = callback
 
     msg = json.dumps(body)
     resp = sqs.send_message(
