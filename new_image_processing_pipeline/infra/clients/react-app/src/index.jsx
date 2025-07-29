@@ -170,7 +170,7 @@ function App() {
                   <Button variant="contained" color="primary" fullWidth disabled={provisioned || status==='provisioning'} onClick={provision} sx={{ mb: 2, bgcolor: '#e30613', color: '#fff', '&:hover': { bgcolor: '#b8000f' } }}>
                     {provisioned ? 'Coda provisionata' : (status==='provisioning' ? <><CircularProgress size={18} sx={{mr:1}}/> Provisioning...</> : 'Provisiona coda')}
                   </Button>
-                  {status==='ready' && (
+                  {(status==='ready' || status==='done') && (
                     <Button variant="contained" color="secondary" fullWidth onClick={startJob} sx={{ mb: 2, color: '#fff', fontWeight: 600 }}>Avvia processing</Button>
                   )}
                   {status==='waiting' && (
