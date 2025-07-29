@@ -161,3 +161,58 @@ cdk destroy --all --force
 ## 📚 Note
 - I worker Fargate non leggono direttamente da SQS, ma ricevono job inoltrati dalla Lambda router.
 - Per estendere la pipeline o aggiungere algoritmi, consulta `src/medical_image_processing/README.md`.
+
+---
+
+# Flusso architetturale: richiesta immagine da frontend a PACS e processing
+
+```mermaid
+graph LR
+    subgraph Frontend
+        FE[Frontend]
+    end
+    subgraph API
+        APIPACS[PacsApi (LoadBalancer + Service)]
+    end
+    subgraph Imports
+        PACSB[Pacs S3 Bucket (esistente)]
+    end
+    subgraph Pipeline[Image Processing Pipeline]
+        PIPE[ImgPipeline (ECS Cluster + Tasks)]
+        ALGOS[AlgosRepo (ECR)]
+        OUTPUT[Output S3 Bucket]
+        ROUTER[RouterFunction (Lambda)]
+        PROVISION[ProvisionFunction (Lambda)]
+        PROXYSIG[ProxySigFunction (Lambda)]
+        PROCAPI[ProcessingApi (API Gateway)]
+    end
+
+    FE-->|Richiesta immagine/processamento|APIPACS
+    APIPACS-->|Recupera da|PACSB
+    APIPACS-->|Invoca pipeline|PIPE
+    PIPE-->|Scarica algoritmi|ALGOS
+    PIPE-->|Scrive risultati|OUTPUT
+    PIPE-->|Invoca|PROCAPI
+    PROCAPI-->|Gestisce routing|ROUTER
+    PROCAPI-->|Provisioning|PROVISION
+    PROCAPI-->|Proxy firma|PROXYSIG
+    ROUTER-->|Smista richieste|PIPE
+    PROVISION-->|Provisiona risorse|PIPE
+    PROXYSIG-->|Proxy firma|PIPE
+    FE-->|Riceve risultato|FE
+```
+
+## Descrizione step-by-step
+1. **Frontend** invia una richiesta di immagine/processamento.
+2. La richiesta arriva al **PacsApi** (LoadBalancer + Service).
+3. **PacsApi** recupera l’immagine dal bucket S3 PACS esistente.
+4. **PacsApi** invoca la **ImgPipeline** (cluster ECS) per processare l’immagine.
+5. La pipeline scarica gli algoritmi da **AlgosRepo** (ECR) e processa l’immagine.
+6. I risultati vengono scritti su **Output S3 Bucket**.
+7. La pipeline interagisce con **ProcessingApi** (API Gateway) per gestire routing, provisioning e firma tramite Lambda:
+   - **RouterFunction** smista le richieste ai task giusti.
+   - **ProvisionFunction** gestisce il provisioning delle risorse necessarie.
+   - **ProxySigFunction** si occupa della firma dei risultati.
+8. Il **Frontend** riceve il risultato finale.
+
+> Ogni componente è rappresentato da uno stack o risorsa CDK nella cartella `infra`.
