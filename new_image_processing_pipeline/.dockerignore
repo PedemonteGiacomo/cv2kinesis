@@ -1,0 +1,30 @@
+# 1) Ignora tutto di default
+**
+
+# 2) Mantieni Dockerfile e worker.sh
+!containers/base/Dockerfile
+!containers/base/worker.sh
+
+# 3) Mantieni requirements per pip install
+!requirements.txt
+
+# 4) Mantieni setup.py per -e ./src
+!src/setup.py
+
+# 5) Mantieni solo il runner
+!src/rsna_pipeline/__init__.py
+!src/rsna_pipeline/service/runner.py
+
+# 6) Mantieni le utils usate dal runner
+!src/medical_image_processing/utils/
+!src/medical_image_processing/utils/__init__.py
+
+# 7) E i due algoritmi demo
+!src/medical_image_processing/processing/threshold_ccl.py
+!src/medical_image_processing/processing/liver_cc_simple.py
+!src/medical_image_processing/processing/__init__.py
+!src/medical_image_processing/processing/base.py
+!src/medical_image_processing/processing/edge_morph.py
+!src/medical_image_processing/processing/otsu_border.py
+!src/medical_image_processing/processing/lung_mask.py
+!src/medical_image_processing/processing/liver_parenchyma.py
