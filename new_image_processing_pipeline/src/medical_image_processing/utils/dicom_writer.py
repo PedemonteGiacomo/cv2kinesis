@@ -7,6 +7,7 @@ from pydicom.uid import (
     SecondaryCaptureImageStorage,
     generate_uid,
     ExplicitVRLittleEndian,
+    PYDICOM_IMPLEMENTATION_UID,
 )
 from datetime import datetime
 
@@ -26,6 +27,7 @@ def save_secondary_capture(
     ds.file_meta.TransferSyntaxUID = ExplicitVRLittleEndian
     ds.file_meta.MediaStorageSOPClassUID = SecondaryCaptureImageStorage
     ds.file_meta.MediaStorageSOPInstanceUID = generate_uid()
+    ds.file_meta.ImplementationClassUID = PYDICOM_IMPLEMENTATION_UID
 
     # Copia i tag necessari del paziente/studio
     for tag in (
@@ -74,4 +76,4 @@ def save_secondary_capture(
     # Provenienza
     ds.add_new(0x00181030, "LO", f"Post-processed with {algo_id}")
 
-    ds.save_as(out_path)
+    ds.save_as(out_path, write_like_original=False)

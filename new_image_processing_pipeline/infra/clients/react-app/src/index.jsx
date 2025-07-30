@@ -1,5 +1,7 @@
 
 import React, { useState } from 'react';
+import DicomMetaCard from './DicomMetaCard';
+import { data as dcmjsData } from 'dcmjs';
 import DicomViewer from './DicomViewer';
 import { createRoot } from 'react-dom/client';
 import { v4 as uuid } from 'uuid';
@@ -22,6 +24,32 @@ const API_BASE  = (process.env.REACT_APP_API_BASE || '<default>').replace(/\/$/,
 const PACS_BASE = process.env.REACT_APP_PACS_BASE   || '<default>';
 
 function App() {
+  const [originalMeta, setOriginalMeta] = useState(null);
+  const [processedMeta, setProcessedMeta] = useState(null);
+
+  // Estrae i metadati DICOM da una url
+  async function extractDicomMeta(url) {
+    try {
+      console.log('[extractDicomMeta] Fetching DICOM from:', url);
+      const res = await fetch(url);
+      if (!res.ok) {
+        console.error('[extractDicomMeta] Fetch failed:', res.status, res.statusText);
+        return null;
+      }
+      const arrayBuffer = await res.arrayBuffer();
+      const dicomData = dcmjsData.DicomMessage.readFile(arrayBuffer);
+      const dataset = dcmjsData.DicomMetaDictionary.naturalizeDataset(dicomData.dict);
+      // ProtocolName può essere su 0018,1030
+      if (dicomData.dict['x00181030'] && !dataset.ProtocolName) {
+        dataset.ProtocolName = dicomData.dict['x00181030'].Value?.[0] || '';
+      }
+      console.log('[extractDicomMeta] Estratti metadati:', dataset);
+      return dataset;
+    } catch (e) {
+      console.error('[extractDicomMeta] Errore parsing DICOM:', e);
+      return null;
+    }
+  }
   const [clientId, setClientId] = useState(null);
   const [queueUrl, setQueueUrl] = useState(null);
   const [jobId, setJobId] = useState(null);
@@ -34,6 +62,7 @@ function App() {
   const [previewUrl,setPreviewUrl]= useState(null);
   const [algorithm, setAlgorithm] = useState('processing_1');
   const [provisioned, setProvisioned] = useState(false);
+  const [originalUrl, setOriginalUrl] = useState(null); // url DICOM originale per processing
 
   async function provision() {
     const cid = uuid();
@@ -57,6 +86,26 @@ function App() {
     setJobId(jid);
     setStatus('waiting');
     setResult(null); // reset risultato
+    // Recupera subito il DICOM originale dal PACS (come anteprima)
+    setOriginalUrl(null);
+    setOriginalMeta(null);
+    setProcessedMeta(null);
+    try {
+      const res = await fetch(
+        `${PACS_BASE}/studies/${encodeURIComponent(studyId)}`+
+        `/images/${encodeURIComponent(seriesId)}`+
+        `/${encodeURIComponent(imageId)}`,
+        { headers: { 'Accept': 'application/json' } }
+      );
+      const j = await res.json();
+      setOriginalUrl(j.url);
+      // Estrai metadati originale
+      if (j.url) {
+        extractDicomMeta(j.url).then(setOriginalMeta);
+      }
+    } catch (e) {
+      setOriginalUrl(null);
+    }
     // Usa i valori dallo stato React
     const payload = {
       job_id: jid,
@@ -79,15 +128,30 @@ function App() {
 
   async function pollResult(jid) {
     // semplice polling via fetch a un proxy (qui assumiamo CORS permesso)
-    while(true) {
+    let attempts = 0;
+    while (attempts < 10) {
       const sqsRes = await fetch(`${API_BASE}/proxy-sqs?queue=${encodeURIComponent(queueUrl)}`);
       const msgs = await sqsRes.json();
-      if(msgs.length) {
-        const m = msgs.find(m=>m.job_id===jid);
-        if(m) { setResult(m); setStatus('done'); return; }
+      if (msgs.length) {
+        const m = msgs.find(m => m.job_id === jid);
+        if (m) {
+          setResult(m);
+          setStatus('done');
+          // Estrai metadati processato
+          if (m.dicom?.url) {
+            console.log('[pollResult] Presigned URL DICOM processato:', m.dicom.url);
+            extractDicomMeta(m.dicom.url).then(meta => {
+              console.log('[pollResult] Metadati processato:', meta);
+              setProcessedMeta(meta);
+            });
+          }
+          return;
+        }
       }
-      await new Promise(r=>setTimeout(r,2000));
+      attempts++;
+      await new Promise(r => setTimeout(r, 2000));
     }
+    setStatus('error');
   }
 
   return (
@@ -99,8 +163,8 @@ function App() {
             Test Pipeline
           </Typography>
         </Box>
-        <Grid container spacing={4}>
-          <Grid item xs={12} md={6}>
+        <Grid container spacing={4} columns={12}>
+          <Grid sx={{ gridColumn: 'span 6' }}>
             <Card elevation={2} sx={{ mb: 2, borderTop: '6px solid #e30613' }}>
               <CardContent>
                 <Typography variant="h6" color="primary" fontWeight={600} gutterBottom>
@@ -131,7 +195,7 @@ function App() {
               </CardContent>
             </Card>
           </Grid>
-          <Grid item xs={12} md={6}>
+          <Grid sx={{ gridColumn: 'span 6' }}>
             <Card elevation={2} sx={{ mb: 2, borderTop: '6px solid #e30613' }}>
               <CardContent>
                 {/* Sezione scelta algoritmo, provisioning, avvio processing */}
@@ -176,6 +240,11 @@ function App() {
                   {status==='waiting' && (
                     <Alert severity="info" sx={{ mb: 2 }}>⏳ In attesa del risultato…</Alert>
                   )}
+                  {status==='error' && (
+                    <Alert severity="error" sx={{ mb: 2 }}>
+                      Errore: il processing non ha prodotto un risultato. Puoi riprovare ad avviare un nuovo job.
+                    </Alert>
+                  )}
                   {/* Sezione info coda provisionata */}
                   {provisioned && queueUrl && (
                     <Alert severity="success" sx={{ mb: 2 }}>
@@ -185,16 +254,36 @@ function App() {
                     </Alert>
                   )}
                 </Box>
-                {/* Visualizzazione DICOM processato */}
-                {result && result.dicom?.url ? (
-                  <>
-                    <Typography variant="h6" color="success.main" fontWeight={600} gutterBottom>
-                      <span style={{verticalAlign:'middle'}}>✅</span> Risultato Processato
-                    </Typography>
-                    <DicomViewer url={result.dicom.url} />
-                  </>
-                ) : (
-                  <Box sx={{ color: 'grey.500', mt: 2 }}>Nessun risultato ancora disponibile.</Box>
+                {/* Visualizzazione DICOM originale e processato affiancati + metadati */}
+                {(status === 'waiting' || status === 'done') && (
+                  <Grid container spacing={2} columns={12} alignItems="flex-start">
+                    <Grid sx={{ gridColumn: 'span 6' }}>
+                      <Typography variant="subtitle1" color="primary" fontWeight={500} gutterBottom>
+                        Originale DICOM
+                      </Typography>
+                      {originalUrl ? (
+                        <DicomViewer url={originalUrl} />
+                      ) : (
+                        <Box sx={{ color: 'grey.500', mt: 2 }}>Caricamento originale…</Box>
+                      )}
+                      {originalMeta && (
+                        <DicomMetaCard title="Metadati Originale" meta={originalMeta} />
+                      )}
+                    </Grid>
+                    <Grid sx={{ gridColumn: 'span 6' }}>
+                      <Typography variant="subtitle1" color="success.main" fontWeight={500} gutterBottom>
+                        {processedMeta ? 'Metadati Processato' : (status === 'done' ? 'Risultato Processato' : 'In attesa del risultato…')}
+                      </Typography>
+                      {result && result.dicom?.url ? (
+                        <DicomViewer url={result.dicom.url} />
+                      ) : (
+                        <Box sx={{ color: 'grey.500', mt: 2 }}>Nessun risultato ancora disponibile.</Box>
+                      )}
+                      {processedMeta && (
+                        <DicomMetaCard title="Metadati Processato" meta={processedMeta} compareTo={originalMeta} />
+                      )}
+                    </Grid>
+                  </Grid>
                 )}
               </CardContent>
             </Card>
