@@ -9,6 +9,7 @@
     "cornerstone-core": "^2.3.0",
     "cornerstone-tools": "^4.21.0",
     "cornerstone-wado-image-loader": "^3.0.1",
+    "dcmjs": "^0.43.1",
     "dicom-parser": "^1.8.6",
     "dotenv-webpack": "^8.1.1",
     "html-webpack-plugin": "^5.6.3",

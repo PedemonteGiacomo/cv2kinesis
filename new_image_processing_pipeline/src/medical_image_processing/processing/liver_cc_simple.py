@@ -3,7 +3,8 @@ from __future__ import annotations
 
 import numpy as np
 import scipy.ndimage as ndi
-from skimage.morphology import binary_closing, disk
+from scipy.ndimage import binary_closing
+from skimage.morphology import disk
 from scipy.ndimage import binary_fill_holes, binary_opening, generate_binary_structure
 
 from .base import Processor
@@ -25,10 +26,10 @@ class LiverCCSimple(Processor):
 
     def __init__(
         self,
-        thr: int = 110,  # soglia HU
-        median_k: int = 9,  # kernel mediana (px)
-        close_k: int = 7,  # raggio closing
-        min_area_px: int = 20_000,
+        thr: int = 120,  # soglia HU più alta
+        median_k: int = 11,  # kernel mediana più grande
+        close_k: int = 9,  # raggio closing più grande
+        min_area_px: int = 25_000,
         side: str = "left",  # 'left' (radiological) o 'right'
     ):
         self.thr = thr
@@ -66,14 +67,15 @@ class LiverCCSimple(Processor):
         mask = smooth > self.thr
 
         # 3) binary closing (chiude solchi vascolari/bordo)
-        mask = binary_closing(mask, footprint=disk(self.close_k))
+        footprint = disk(self.close_k)
+        mask = binary_closing(mask, structure=footprint, iterations=2)
 
         # 4) fill‑holes (tappa cavità interne)
         mask = binary_fill_holes(mask)
 
         # 5) tiny opening per togliere granuli isolati
         struc = generate_binary_structure(2, 1)
-        mask = binary_opening(mask, structure=struc, iterations=1)
+        mask = binary_opening(mask, structure=struc, iterations=2)
 
         from medical_image_processing.utils.liver_select import pick_liver_component
         from medical_image_processing.utils.morpho import postprocess_mask

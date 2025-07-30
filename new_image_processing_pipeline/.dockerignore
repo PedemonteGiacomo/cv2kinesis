@@ -24,7 +24,3 @@
 !src/medical_image_processing/processing/liver_cc_simple.py
 !src/medical_image_processing/processing/__init__.py
 !src/medical_image_processing/processing/base.py
-!src/medical_image_processing/processing/edge_morph.py
-!src/medical_image_processing/processing/otsu_border.py
-!src/medical_image_processing/processing/lung_mask.py
-!src/medical_image_processing/processing/liver_parenchyma.py

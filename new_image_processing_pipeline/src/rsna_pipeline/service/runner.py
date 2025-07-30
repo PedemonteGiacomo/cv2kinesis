@@ -14,10 +14,13 @@ import numpy as np
 import pydicom
 import requests
 
+
 import medical_image_processing.processing  # registra gli algoritmi
 from medical_image_processing.processing.base import Processor
 from medical_image_processing.utils.dicom_io import load_dicom
 from medical_image_processing.utils.dicom_writer import save_secondary_capture
+from medical_image_processing.utils.viz import overlay_mask
+import cv2
 
 
 def parse() -> argparse.Namespace:
@@ -129,8 +132,9 @@ def main() -> None:
                 print(f"[runner] processor instance: {proc}")
                 res = proc.run(img)
                 print(f"[runner] result: {res}")
-                mask_u8 = (res["mask"] > 0).astype(np.uint8) * 255
-                print(f"[runner] mask_u8 shape: {getattr(mask_u8, 'shape', None)}")
+                mask = res["mask"]
+                overlay = overlay_mask(img, mask)  # shape (H,W,3), dtype=uint8
+                print(f"[runner] overlay shape: {getattr(overlay, 'shape', None)}")
             except Exception as e:
                 print(f"[runner] ERROR during processing: {e}")
                 import traceback; traceback.print_exc()
@@ -141,7 +145,11 @@ def main() -> None:
                 out_path = Path(tmp) / out_name
                 print(f"[runner] saving DICOM: {out_path} (algo={args.algo}, is_series={is_series})")
                 save_secondary_capture(
-                    mask_u8, src_ds, out_path, algo_id=args.algo, is_series=is_series
+                    overlay,             # immagine RGB
+                    src_ds,
+                    out_path,
+                    algo_id=args.algo,
+                    is_series=is_series
                 )
                 print(f"[runner] DICOM saved: {out_path}")
             except Exception as e:
