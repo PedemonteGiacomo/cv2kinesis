@@ -25,33 +25,41 @@ export default function DicomMetaCard({ title, meta, compareTo }) {
     <Card elevation={2} sx={{ mb: 2 }}>
       <CardContent>
         <Typography variant="subtitle1" fontWeight={600} gutterBottom>{title}</Typography>
-        <Table size="small">
-          <TableBody>
-            {TAGS.map(tag => {
-              let value = meta?.[tag.key] || '';
-              // Se il valore è un oggetto (es. PatientName), converti in stringa leggibile
+        <Box sx={{ width: '100%', overflowX: 'auto', display: 'block' }}>
+          <Table size="small">
+            <TableBody>
+              {TAGS.map(tag => {
+              let rawValue = meta?.[tag.key];
+              let compareValue = compareTo && compareTo[tag.key];
+              let highlight = false;
+              // Confronto robusto: se entrambi oggetti, confronto come stringa, altrimenti confronto diretto
+              if (compareTo && compareTo.hasOwnProperty(tag.key)) {
+                if (typeof rawValue === 'object' && typeof compareValue === 'object') {
+                  highlight = JSON.stringify(rawValue) !== JSON.stringify(compareValue);
+                } else {
+                  highlight = String(rawValue ?? '') !== String(compareValue ?? '');
+                }
+              }
+              // Per la visualizzazione, normalizza value come prima
+              let value = rawValue || '';
               if (value && typeof value === 'object') {
-                // Caso PatientName: { Alphabetic: '...' }
                 if (value.Alphabetic) value = value.Alphabetic;
                 else value = JSON.stringify(value);
               }
-              let highlight = false;
-              let compareValue = compareTo && compareTo[tag.key];
-              if (compareTo && value && value !== compareValue) highlight = true;
               return (
                 <TableRow key={tag.key}>
                   <TableCell sx={{ fontWeight: 500 }}>{tag.label}</TableCell>
                   <TableCell>
                     <Box component="span" sx={highlight ? { color: 'success.main', fontWeight: 700 } : {}}>
                       {value}
-                      {highlight && <Box component="span" sx={{ ml: 1, fontSize: '0.85em', color: 'primary.main' }}>(modificato)</Box>}
                     </Box>
                   </TableCell>
                 </TableRow>
               );
-            })}
-          </TableBody>
-        </Table>
+              })}
+            </TableBody>
+          </Table>
+        </Box>
       </CardContent>
     </Card>
   );
