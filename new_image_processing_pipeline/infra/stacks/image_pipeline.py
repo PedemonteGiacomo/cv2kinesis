@@ -73,21 +73,11 @@ class ImagePipeline(Stack):
             partition_key=ddb.Attribute(name="connectionId", type=ddb.AttributeType.STRING)
         )
 
-        # WebSocket API
-        ws_api = apigwv2.WebSocketApi(self, "WebSocketApi",
-            connect_route_options={
-                "integration": WebSocketLambdaIntegration("OnConnectIntegration", _lambda.Function.from_function_arn(self, "OnConnectFnImport", "arn:aws:lambda:region:account-id:function:placeholder"))
-            },
-            disconnect_route_options={
-                "integration": WebSocketLambdaIntegration("OnDisconnectIntegration", _lambda.Function.from_function_arn(self, "OnDisconnectFnImport", "arn:aws:lambda:region:account-id:function:placeholder"))
-            }
-        )
-        ws_stage = apigwv2.WebSocketStage(self, "WebSocketStage", web_socket_api=ws_api, stage_name="prod", auto_deploy=True)
-
-        # Lambda OnConnect
+        # Crea il layer Lambda Insights UNA SOLA VOLTA
         insights_layer = _lambda.LayerVersion.from_layer_version_arn(
             self, "InsightsLayer", "arn:aws:lambda:us-east-1:580247275435:layer:LambdaInsightsExtension:40"
         )
+        
         on_connect_fn = _lambda.Function(
             self, "OnConnectFn",
             runtime=_lambda.Runtime.PYTHON_3_11,
@@ -105,6 +95,19 @@ class ImagePipeline(Stack):
             retry_attempts=0,
             layers=[insights_layer]
         )
+        # WebSocket Lambda functions (create first)
+        # (già creati sopra, non ridefinire)
+        # WebSocket API (pass real Lambda functions)
+        ws_api = apigwv2.WebSocketApi(self, "WebSocketApi",
+            connect_route_options={
+                "integration": WebSocketLambdaIntegration("OnConnectIntegration", on_connect_fn)
+            },
+            disconnect_route_options={
+                "integration": WebSocketLambdaIntegration("OnDisconnectIntegration", on_disconnect_fn)
+            }
+        )
+        ws_stage = apigwv2.WebSocketStage(self, "WebSocketStage", web_socket_api=ws_api, stage_name="prod", auto_deploy=True)
+
         push_fn = _lambda.Function(
             self, "ResultPushFn",
             runtime=_lambda.Runtime.PYTHON_3_11,
@@ -112,7 +115,7 @@ class ImagePipeline(Stack):
             code=_lambda.Code.from_asset(os.path.join(os.path.dirname(__file__), "../lambda")),
             environment={
                 "CONN_TABLE": connections.table_name,
-                "WS_CALLBACK_URL": f"https://{ws_api.api_id}.execute-api.{self.region}.amazonaws.com/{ws_stage.stage_name}"
+                #"WS_CALLBACK_URL": f"https://{ws_api.api_id}.execute-api.{self.region}.amazonaws.com/{ws_stage.stage_name}"
             },
             layers=[insights_layer]
         )
@@ -157,7 +160,7 @@ class ImagePipeline(Stack):
                     "ALGO_ID": algo,
                     "PACS_API_BASE": pacs_api_url if pacs_api_url else "",
                     "PACS_API_KEY":  "devkey",
-                    "RESULT_QUEUE_URL": results_q.queue_url
+                    "RESULT_QUEUE": results_q.queue_url  # nome già usato in tutto il codice
                 },
                 command=["/app/worker.sh"],
             )
@@ -213,6 +216,11 @@ class ImagePipeline(Stack):
               allow_origins=apigw.Cors.ALL_ORIGINS,
               allow_methods=apigw.Cors.ALL_METHODS
             )
+        )
+
+        push_fn.add_environment(
+            "WS_CALLBACK_URL",
+            f"https://{ws_api.api_id}.execute-api.{self.region}.amazonaws.com/{ws_stage.stage_name}"
         )
 
         proc = api.root.add_resource("process")
