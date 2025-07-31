@@ -1,8 +1,0 @@
-.venv/
-__pycache__/
-*.pyc
-.pytest_cache/
-*.log
-.pre-commit-config.yaml
-.env*
-pacs_api_sim/__pycache__/
