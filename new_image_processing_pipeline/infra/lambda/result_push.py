@@ -14,6 +14,7 @@ def lambda_handler(event, context, metrics):
     metrics.put_dimensions({"Function": "ResultPush"})
     for r in event["Records"]:
         body = json.loads(r["body"])
+        log.info("[result_push] Received body: %s", body)
         cid = body["client_id"]
         item = ddb.get_item(TableName=TABLE, Key={"client_id": {"S": cid}}).get("Item")
         if not item:
