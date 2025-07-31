@@ -63,16 +63,16 @@ graph LR
     subgraph Imports
         PACSB[Pacs S3 Bucket]
     end
-    subgraph Pipeline[Image Processing Pipeline]
-        PIPE[ImgPipeline (ECS Cluster + Tasks)]
-        ALGOS[AlgosRepo (ECR)]
+    subgraph Pipeline
+        PIPE[ImgPipeline ECS Cluster]
+        ALGOS[AlgosRepo ECR]
         OUTPUT[Output S3 Bucket]
-        ROUTER[RouterFunction (Lambda)]
-        PROVISION[ProvisionFunction (Lambda)]
-        PROCAPI[ProcessingApi (API Gateway)]
+        ROUTER[RouterFunction Lambda]
+        PROVISION[ProvisionFunction Lambda]
+        PROCAPI[ProcessingApi API Gateway]
         WSAPI[WebSocket API]
         RESULTSQ[ResultsQueue.fifo]
-        RESULTPUSH[ResultPushFn (Lambda)]
+        RESULTPUSH[ResultPushFn Lambda]
     end
 
     FE-->|Richiesta immagine/processamento|APIPACS
