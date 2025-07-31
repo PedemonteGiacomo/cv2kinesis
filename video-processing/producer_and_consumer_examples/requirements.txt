@@ -1,0 +1,8 @@
+# Dipendenze essenziali per la pipeline semplice
+boto3==1.28.48
+opencv-python==4.8.0.76
+ultralytics==8.0.180
+python-dotenv==1.0.0
+numpy<2
+torch==2.0.1
+torchvision==0.15.2
