@@ -52,44 +52,7 @@ Client → API REST → SQS Requests → Fargate → SQS Results.fifo → Lambda
 
 ## Flusso architetturale (aggiornato)
 
-```mermaid
-graph LR
-    subgraph Frontend
-        FE[Frontend]
-    end
-    subgraph API
-        APIPACS[PacsApi]
-    end
-    subgraph Imports
-        PACSB[Pacs S3 Bucket]
-    end
-    subgraph Pipeline
-        PIPE[ImgPipeline ECS Cluster]
-        ALGOS[AlgosRepo ECR]
-        OUTPUT[Output S3 Bucket]
-        ROUTER[RouterFunction Lambda]
-        PROVISION[ProvisionFunction Lambda]
-        PROCAPI[ProcessingApi API Gateway]
-        WSAPI[WebSocket API]
-        RESULTSQ[ResultsQueue.fifo]
-        RESULTPUSH[ResultPushFn Lambda]
-    end
-
-    FE-->|Richiesta immagine/processamento|APIPACS
-    APIPACS-->|Recupera da|PACSB
-    APIPACS-->|Invoca pipeline|PIPE
-    PIPE-->|Scarica algoritmi|ALGOS
-    PIPE-->|Scrive risultati|OUTPUT
-    PIPE-->|Invoca|PROCAPI
-    PROCAPI-->|Gestisce routing|ROUTER
-    PROCAPI-->|Provisioning|PROVISION
-    ROUTER-->|Smista richieste|PIPE
-    PROVISION-->|Provisiona risorse|PIPE
-    PIPE-->|Scrive su|RESULTSQ
-    RESULTSQ-->|Trigger|RESULTPUSH
-    RESULTPUSH-->|Push via WS|WSAPI
-    WSAPI-->|Notifica|FE
-```
+![architecture31072025](docs\architecture31072025.png)
 
 ---
 
