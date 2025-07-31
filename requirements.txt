@@ -4,4 +4,6 @@ scipy
 opencv-python-headless
 scikit-image
 tqdm
-
+requests
+boto3
+matplotlib
