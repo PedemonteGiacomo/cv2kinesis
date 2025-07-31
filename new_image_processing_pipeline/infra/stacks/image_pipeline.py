@@ -12,9 +12,12 @@ from aws_cdk import (
     CfnOutput,
     aws_lambda as _lambda,
     aws_apigateway as apigw,
-    aws_sns as sns,
-    aws_iam as iam
+    aws_iam as iam,
+    aws_dynamodb as ddb
 )
+from aws_cdk.aws_apigatewayv2_alpha import WebSocketApi, WebSocketStage
+from aws_cdk.aws_apigatewayv2_alpha import WebSocketRouteIntegration, WebSocketLambdaIntegration
+from aws_cdk.aws_apigatewayv2_alpha import WebSocketRouteKey
 from constructs import Construct
 import json
 import os
@@ -49,6 +52,88 @@ class ImagePipeline(Stack):
             )
             request_queues[algo] = rq
 
+        # ResultsQueue globale FIFO
+        results_q = sqs.Queue(
+            self, "ResultsQueue.fifo",
+            fifo=True,
+            content_based_deduplication=True,
+            visibility_timeout=Duration.minutes(15),
+            queue_name="ResultsQueue.fifo"
+        )
+
+        # DynamoDB Connections table
+        connections = ddb.Table(
+            self, "Connections",
+            partition_key=ddb.Attribute(name="client_id", type=ddb.AttributeType.STRING),
+            removal_policy=RemovalPolicy.DESTROY,
+            billing_mode=ddb.BillingMode.PAY_PER_REQUEST
+        )
+        # GSI ByConnection
+        connections.add_global_secondary_index(
+            index_name="ByConnection",
+            partition_key=ddb.Attribute(name="connectionId", type=ddb.AttributeType.STRING)
+        )
+
+        # WebSocket API
+        ws_api = WebSocketApi(self, "WebSocketApi",
+            connect_route_options={
+                "integration": WebSocketLambdaIntegration("OnConnectIntegration", _lambda.Function.from_function_arn(self, "OnConnectFnImport", "arn:aws:lambda:region:account-id:function:placeholder"))
+            },
+            disconnect_route_options={
+                "integration": WebSocketLambdaIntegration("OnDisconnectIntegration", _lambda.Function.from_function_arn(self, "OnDisconnectFnImport", "arn:aws:lambda:region:account-id:function:placeholder"))
+            }
+        )
+        ws_stage = WebSocketStage(self, "WebSocketStage", web_socket_api=ws_api, stage_name="prod", auto_deploy=True)
+
+        # Lambda OnConnect
+        on_connect_fn = _lambda.Function(
+            self, "OnConnectFn",
+            runtime=_lambda.Runtime.PYTHON_3_11,
+            handler="on_connect.lambda_handler",
+            code=_lambda.Code.from_asset(os.path.join(os.path.dirname(__file__), "../lambda")),
+            environment={"CONN_TABLE": connections.table_name}
+        )
+        # Lambda OnDisconnect
+        on_disconnect_fn = _lambda.Function(
+            self, "OnDisconnectFn",
+            runtime=_lambda.Runtime.PYTHON_3_11,
+            handler="on_disconnect.lambda_handler",
+            code=_lambda.Code.from_asset(os.path.join(os.path.dirname(__file__), "../lambda")),
+            environment={"CONN_TABLE": connections.table_name},
+            retry_attempts=0
+        )
+        # Lambda ResultPush
+        push_fn = _lambda.Function(
+            self, "ResultPushFn",
+            runtime=_lambda.Runtime.PYTHON_3_11,
+            handler="result_push.lambda_handler",
+            code=_lambda.Code.from_asset(os.path.join(os.path.dirname(__file__), "../lambda")),
+            environment={
+                "CONN_TABLE": connections.table_name,
+                "WS_CALLBACK_URL": f"https://{ws_api.api_id}.execute-api.{self.region}.amazonaws.com/{ws_stage.stage_name}"
+            }
+        )
+        # SQS event source con batch/concurrency
+        from aws_cdk.aws_lambda_event_sources import SqsEventSource
+        push_fn.add_event_source(SqsEventSource(results_q, batch_size=5, max_concurrency=10))
+        results_q.grant_consume_messages(push_fn)
+        # Lambda Insights + log retention 1 giorno
+        from aws_cdk.aws_lambda_insights import LambdaInsightsVersion
+        for fn in [on_connect_fn, on_disconnect_fn, push_fn]:
+            logs.LogGroup(self, f"{fn.node.id}Logs",
+                log_group_name=f"/aws/lambda/{fn.function_name}",
+                removal_policy=RemovalPolicy.DESTROY,
+                retention=logs.RetentionDays.ONE_DAY,
+            )
+            fn.add_extension(LambdaInsightsVersion.V1_0_119)
+        connections.grant_read_write_data(on_connect_fn)
+        connections.grant_read_write_data(on_disconnect_fn)
+        connections.grant_read_write_data(push_fn)
+        push_fn.add_to_role_policy(iam.PolicyStatement(
+            actions=["execute-api:ManageConnections"],
+            resources=[f"arn:aws:execute-api:{self.region}:{self.account}:{ws_api.api_id}/*"]
+        ))
+
         for algo in algos:
             task = ecs.FargateTaskDefinition(
                 self, f"TaskDef{algo}", cpu=1024, memory_limit_mib=2048
@@ -68,10 +153,10 @@ class ImagePipeline(Stack):
                     "ALGO_ID": algo,
                     "PACS_API_BASE": pacs_api_url if pacs_api_url else "",
                     "PACS_API_KEY":  "devkey",
+                    "RESULT_QUEUE_URL": results_q.queue_url
                 },
                 command=["/app/worker.sh"],
             )
-
             svc = ecs.FargateService(
                 self,
                 f"Svc{algo}",
@@ -81,12 +166,8 @@ class ImagePipeline(Stack):
             request_queues[algo].grant_consume_messages(task.task_role)
             out_bucket.grant_put(task.task_role)
             out_bucket.grant_read(task.task_role)
-            # Permesso per inviare a tutte le queue client dinamiche
-            task.task_role.add_to_policy(iam.PolicyStatement(
-                actions=["sqs:SendMessage"],
-                resources=["arn:aws:sqs:*:*:ClientResults-*"]
-            ))
-
+            # Permesso per inviare SOLO alla results_q
+            results_q.grant_send_messages(task.task_role)
             svc.auto_scale_task_count(min_capacity=1, max_capacity=10).scale_on_metric(
                 f"Scale{algo}",
                 metric=request_queues[algo].metric_approximate_number_of_messages_visible(),
@@ -119,18 +200,6 @@ class ImagePipeline(Stack):
             ],
             resources=["*"]
         ))
-        # Lambda proxy SQS per polling HTTP
-        proxy = _lambda.Function(
-            self, "ProxySqsFunction",
-            runtime=_lambda.Runtime.PYTHON_3_11,
-            handler="proxy_sqs.lambda_handler",
-            code=_lambda.Code.from_asset(os.path.join(os.path.dirname(__file__), "../lambda")),
-        )
-        proxy.add_to_role_policy(iam.PolicyStatement(
-            actions=["sqs:ReceiveMessage","sqs:DeleteMessage"],
-            resources=["*"]
-        ))
-
         for rq in request_queues.values():
             rq.grant_send_messages(router)
 
@@ -148,11 +217,10 @@ class ImagePipeline(Stack):
         # Endpoint /provision per provisioning dinamico
         prov = api.root.add_resource("provision")
         prov.add_method("POST", apigw.LambdaIntegration(provision))
-        # Endpoint /proxy-sqs per polling SQS via HTTP (usato dal frontend React)
-        ps = api.root.add_resource("proxy-sqs")
-        ps.add_method("GET", apigw.LambdaIntegration(proxy))
 
         for algo in algos:
             CfnOutput(self, f"ImageRequestsQueueUrl{algo}", value=request_queues[algo].queue_url)
         CfnOutput(self, "OutputBucketName",    value=out_bucket.bucket_name)
         CfnOutput(self, "ProcessingApiEndpoint", value=api.url)
+        CfnOutput(self, "WebSocketEndpoint", value=f"wss://{ws_api.api_id}.execute-api.{self.region}.amazonaws.com/{ws_stage.stage_name}")
+        CfnOutput(self, "ResultsQueueUrl", value=results_q.queue_url)
