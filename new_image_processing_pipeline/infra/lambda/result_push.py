@@ -11,7 +11,7 @@ api = boto3.client("apigatewaymanagementapi",
 @aws_embedded_metrics.metric_scope
 def lambda_handler(event, context, metrics):
     metrics.set_namespace("ImagePipeline")
-    metrics.set_dimension("Function", "ResultPush")
+    metrics.put_dimensions({"Function": "ResultPush"})
     for r in event["Records"]:
         body = json.loads(r["body"])
         cid = body["client_id"]
