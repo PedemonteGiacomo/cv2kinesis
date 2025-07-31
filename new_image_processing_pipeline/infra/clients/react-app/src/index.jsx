@@ -49,6 +49,7 @@ function App() {
       return null;
     }
   }
+  const [clientId, setClientId] = useState(null);
   const [jobId, setJobId] = useState(null);
   const [status, setStatus] = useState('idle');
   const [result, setResult] = useState(null);
@@ -60,8 +61,25 @@ function App() {
   const [algorithm, setAlgorithm] = useState('processing_1');
   const [ws, setWs] = useState(null);
   const [originalUrl, setOriginalUrl] = useState(null);
+  // Provision client_id on mount if not present
+  React.useEffect(() => {
+    if (!clientId) {
+      fetch(`${API_BASE}/provision`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      })
+        .then(res => res.json())
+        .then(j => setClientId(j.client_id))
+        .catch(() => setClientId(null));
+    }
+  }, [clientId]);
 
   async function startJob() {
+    if (!clientId) {
+      alert('Client non provisionato. Ricarica la pagina.');
+      return;
+    }
     const jid = uuid();
     setJobId(jid);
     setStatus('waiting');
@@ -92,7 +110,8 @@ function App() {
         series_id: seriesId,
         image_id: imageId,
         scope: scope
-      }
+      },
+      client_id: clientId
     };
     console.log("Job payload:", payload);
     await fetch(`${API_BASE}/process/${algorithm}`, {
@@ -222,7 +241,12 @@ function App() {
                   <MenuItem value="processing_1">Processing 1</MenuItem>
                   <MenuItem value="processing_6">Processing 6</MenuItem>
                   </Select>
-                  <Button variant="contained" color="secondary" fullWidth onClick={startJob} sx={{ mb: 2, color: '#fff', fontWeight: 700, fontSize:18, py:1.5 }} disabled={status==='waiting'}>Start processing</Button>
+                  <Button variant="contained" color="secondary" fullWidth onClick={startJob} sx={{ mb: 2, color: '#fff', fontWeight: 700, fontSize:18, py:1.5 }} disabled={status==='waiting' || !clientId}>Start processing</Button>
+                  {!clientId && (
+                    <Alert severity="warning" sx={{ mb: 2, fontWeight:600, fontSize:15, borderRadius:2 }}>
+                      Provisioning client... Attendere
+                    </Alert>
+                  )}
                   {wsError && (
                     <Alert severity="error" sx={{ mb: 2, fontWeight:600, fontSize:15, borderRadius:2 }}>
                       Real-time non disponibile, ricarica la pagina o riprova più tardi.

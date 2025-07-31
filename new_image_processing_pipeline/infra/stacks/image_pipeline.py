@@ -16,6 +16,7 @@ from aws_cdk import (
     aws_apigatewayv2 as apigwv2,
     CfnOutput
 )
+from aws_cdk.aws_lambda_python_alpha import PythonFunction
 from aws_cdk.aws_apigatewayv2_integrations import WebSocketLambdaIntegration
 from constructs import Construct
 import json
@@ -78,19 +79,22 @@ class ImagePipeline(Stack):
             self, "InsightsLayer", "arn:aws:lambda:us-east-1:580247275435:layer:LambdaInsightsExtension:40"
         )
         
-        on_connect_fn = _lambda.Function(
+        lambda_dir = os.path.join(os.path.dirname(__file__), "../lambda")
+        on_connect_fn = PythonFunction(
             self, "OnConnectFn",
+            entry=lambda_dir,
             runtime=_lambda.Runtime.PYTHON_3_11,
-            handler="on_connect.lambda_handler",
-            code=_lambda.Code.from_asset(os.path.join(os.path.dirname(__file__), "../lambda")),
+            index="on_connect.py",
+            handler="lambda_handler",
             environment={"CONN_TABLE": connections.table_name},
             layers=[insights_layer]
         )
-        on_disconnect_fn = _lambda.Function(
+        on_disconnect_fn = PythonFunction(
             self, "OnDisconnectFn",
+            entry=lambda_dir,
             runtime=_lambda.Runtime.PYTHON_3_11,
-            handler="on_disconnect.lambda_handler",
-            code=_lambda.Code.from_asset(os.path.join(os.path.dirname(__file__), "../lambda")),
+            index="on_disconnect.py",
+            handler="lambda_handler",
             environment={"CONN_TABLE": connections.table_name},
             retry_attempts=0,
             layers=[insights_layer]
@@ -108,11 +112,12 @@ class ImagePipeline(Stack):
         )
         ws_stage = apigwv2.WebSocketStage(self, "WebSocketStage", web_socket_api=ws_api, stage_name="prod", auto_deploy=True)
 
-        push_fn = _lambda.Function(
+        push_fn = PythonFunction(
             self, "ResultPushFn",
+            entry=lambda_dir,
             runtime=_lambda.Runtime.PYTHON_3_11,
-            handler="result_push.lambda_handler",
-            code=_lambda.Code.from_asset(os.path.join(os.path.dirname(__file__), "../lambda")),
+            index="result_push.py",
+            handler="lambda_handler",
             environment={
                 "CONN_TABLE": connections.table_name,
                 #"WS_CALLBACK_URL": f"https://{ws_api.api_id}.execute-api.{self.region}.amazonaws.com/{ws_stage.stage_name}"
@@ -185,21 +190,23 @@ class ImagePipeline(Stack):
 
         queue_url_map = { algo: rq.queue_url for algo, rq in request_queues.items() }
 
-        router = _lambda.Function(
+        router = PythonFunction(
             self, "RouterFunction",
+            entry=lambda_dir,
             runtime=_lambda.Runtime.PYTHON_3_11,
-            handler="router.lambda_handler",
-            code=_lambda.Code.from_asset(os.path.join(os.path.dirname(__file__), "../lambda")),
+            index="router.py",
+            handler="lambda_handler",
             environment={
                "QUEUE_URLS_JSON": json.dumps(queue_url_map)
             }
         )
         # Lambda di provisioning per /provision
-        provision = _lambda.Function(
+        provision = PythonFunction(
             self, "ProvisionFunction",
+            entry=lambda_dir,
             runtime=_lambda.Runtime.PYTHON_3_11,
-            handler="provision.lambda_handler",
-            code=_lambda.Code.from_asset(os.path.join(os.path.dirname(__file__), "../lambda")),
+            index="provision.py",
+            handler="lambda_handler",
         )
         provision.add_to_role_policy(iam.PolicyStatement(
             actions=[
