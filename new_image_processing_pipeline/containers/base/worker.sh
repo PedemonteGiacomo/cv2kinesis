@@ -58,17 +58,17 @@ while true; do
     continue
   fi
   echo "[worker] message BODY: $BODY"
-  # Parsing e export delle variabili fondamentali
-  export CLIENT_ID=$(echo "$BODY" | jq -r '.callback.client_id // "unknown"')
+  # Parsing e export delle variabili fondamentali (push-based)
+  export CLIENT_ID=$(echo "$BODY" | jq -r '.client_id // "unknown"')
   if [[ -z "$CLIENT_ID" || "$CLIENT_ID" == "unknown" ]]; then
     echo "[worker] ERROR: CLIENT_ID not found in message body!"; exit 1
   fi
-  export RESULT_QUEUE=$(echo "$BODY" | jq -r '.callback.queue_url // empty')
+  export RESULT_QUEUE="${RESULT_QUEUE}"
   if [[ -z "$RESULT_QUEUE" ]]; then
-    echo "[worker] ERROR: RESULT_QUEUE not found in message body!"; exit 1
+    echo "[worker] ERROR: RESULT_QUEUE env not set!"; exit 1
   fi
   # Debug: mostra variabili ambiente usate dal runner
-  echo "[worker] PACS_INFO: $(echo "$BODY" | jq -c '.pacs')"
+  echo "[worker] PACS_INFO: $(echo \"$BODY\" | jq -c '.pacs')"
   echo "[worker] PACS_API_BASE: $PACS_API_BASE"
   echo "[worker] PACS_API_KEY: $PACS_API_KEY"
   echo "[worker] CLIENT_ID: $CLIENT_ID"
@@ -83,28 +83,12 @@ while true; do
   echo "[worker] message received: $JOBID"
 
   # 2. esporta variabili consumate da runner.py
-
-
-
-  echo "[worker] parsing PACS_INFO and callback..."
   export PACS_INFO=$(echo "$BODY" | jq -c '.pacs' 2>&1)
   if [[ $? -ne 0 ]]; then
     echo "[worker] ERROR: jq failed to parse pacs: $PACS_INFO"
   fi
-  export CLIENT_ID=$(echo "$BODY" | jq -r '.callback.client_id // "unknown"' 2>&1)
-  if [[ $? -ne 0 ]]; then
-    echo "[worker] ERROR: jq failed to parse callback.client_id: $CLIENT_ID"
-  fi
   export PACS_API_BASE=${PACS_API_BASE:-}
   export PACS_API_KEY=${PACS_API_KEY:-}
-  CB=$(echo "$BODY" | jq -r '.callback.queue_url // empty' 2>&1)
-  if [[ $? -ne 0 ]]; then
-    echo "[worker] ERROR: jq failed to parse callback.queue_url: $CB"
-  fi
-  if [[ -z "$CB" ]]; then
-    echo "[worker] ERROR: RESULT_QUEUE not found in message body!"; exit 1
-  fi
-  export RESULT_QUEUE="$CB"
   echo "[worker] PACS_INFO: $PACS_INFO"
   echo "[worker] CLIENT_ID: $CLIENT_ID"
   echo "[worker] RESULT_QUEUE: $RESULT_QUEUE"

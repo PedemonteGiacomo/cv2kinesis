@@ -22,12 +22,12 @@ const esaoteTheme = createTheme({
 
 const API_BASE  = (process.env.REACT_APP_API_BASE || '<default>').replace(/\/$/, '');
 const PACS_BASE = process.env.REACT_APP_PACS_BASE   || '<default>';
+const WS_ENDPOINT = process.env.REACT_APP_WS_ENDPOINT || '<ws-endpoint>';
+
 
 function App() {
   const [originalMeta, setOriginalMeta] = useState(null);
   const [processedMeta, setProcessedMeta] = useState(null);
-
-  // Estrae i metadati DICOM da una url
   async function extractDicomMeta(url) {
     try {
       console.log('[extractDicomMeta] Fetching DICOM from:', url);
@@ -39,7 +39,6 @@ function App() {
       const arrayBuffer = await res.arrayBuffer();
       const dicomData = dcmjsData.DicomMessage.readFile(arrayBuffer);
       const dataset = dcmjsData.DicomMetaDictionary.naturalizeDataset(dicomData.dict);
-      // ProtocolName può essere su 0018,1030
       if (dicomData.dict['x00181030'] && !dataset.ProtocolName) {
         dataset.ProtocolName = dicomData.dict['x00181030'].Value?.[0] || '';
       }
@@ -51,42 +50,81 @@ function App() {
     }
   }
   const [clientId, setClientId] = useState(null);
-  const [queueUrl, setQueueUrl] = useState(null);
   const [jobId, setJobId] = useState(null);
   const [status, setStatus] = useState('idle');
   const [result, setResult] = useState(null);
+  const [wsError, setWsError] = useState(false);
   const [studyId,   setStudyId]   = useState('liver1/phantomx_abdomen_pelvis_dataset/D55-01');
   const [seriesId,  setSeriesId]  = useState('300/AiCE_BODY-SHARP_300_172938.900');
   const [imageId,   setImageId]   = useState('IM-0135-0095.dcm');
   const [scope,     setScope]     = useState('image');
-  // const [previewUrl,setPreviewUrl]= useState(null); // non serve più
   const [algorithm, setAlgorithm] = useState('processing_1');
-  const [provisioned, setProvisioned] = useState(false);
-  const [originalUrl, setOriginalUrl] = useState(null); // url DICOM originale per processing
+  const [ws, setWs] = useState(null);
+  const [originalUrl, setOriginalUrl] = useState(null);
 
-  async function provision() {
-    const cid = uuid();
-    setStatus('provisioning');
-    setResult(null); // reset risultato
-    // provisioning sempre su /provision
-    const res = await fetch(`${API_BASE}/provision`, {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({client_id: cid})
-    });
-    const j = await res.json();
-    setClientId(j.client_id);
-    setQueueUrl(j.queue_url);
-    setProvisioned(true);
-    setStatus('ready');
-  }
+  // Provision client_id on mount if not present
+  React.useEffect(() => {
+    if (!clientId) {
+      fetch(`${API_BASE}/provision`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      })
+        .then(res => res.json())
+        .then(j => setClientId(j.client_id))
+        .catch(() => setClientId(null));
+    }
+  }, [clientId]);
+
+  // WebSocket connessione/disconnessione con client_id, ricezione risultati push
+  React.useEffect(() => {
+    if (!clientId) return;
+    let wsock;
+    let pingInterval;
+    let closed = false;
+    wsock = new window.WebSocket(`${WS_ENDPOINT}?client_id=${encodeURIComponent(clientId)}`);
+    setWs(wsock);
+    wsock.onopen = () => {
+      pingInterval = setInterval(() => {
+        if (wsock.readyState === 1) wsock.send(JSON.stringify({type:'ping'}));
+      }, 5*60*1000);
+    };
+    wsock.onmessage = ev => {
+      try {
+        const msg = JSON.parse(ev.data);
+        if (msg.job_id && jobId && msg.job_id === jobId) {
+          setResult(msg);
+          setStatus('done');
+          if (msg.dicom?.url) {
+            extractDicomMeta(msg.dicom.url).then(meta => setProcessedMeta(meta));
+          }
+        }
+      } catch {}
+    };
+    wsock.onclose = () => {
+      clearInterval(pingInterval);
+    };
+    wsock.onerror = () => {
+      wsock.close();
+    };
+    return () => {
+      closed = true;
+      if (wsock) wsock.close();
+      clearInterval(pingInterval);
+    };
+    // eslint-disable-next-line
+  }, [clientId, jobId]);
 
   async function startJob() {
+    if (!clientId) {
+      alert('Client non provisionato. Ricarica la pagina.');
+      return;
+    }
     const jid = uuid();
     setJobId(jid);
     setStatus('waiting');
-    setResult(null); // reset risultato
-    // Recupera subito il DICOM originale dal PACS (come anteprima)
+    setResult(null);
+    setWsError(false);
     setOriginalUrl(null);
     setOriginalMeta(null);
     setProcessedMeta(null);
@@ -99,14 +137,12 @@ function App() {
       );
       const j = await res.json();
       setOriginalUrl(j.url);
-      // Estrai metadati originale
       if (j.url) {
         extractDicomMeta(j.url).then(setOriginalMeta);
       }
     } catch (e) {
       setOriginalUrl(null);
     }
-    // Usa i valori dallo stato React
     const payload = {
       job_id: jid,
       pacs: {
@@ -115,7 +151,7 @@ function App() {
         image_id: imageId,
         scope: scope
       },
-      callback: { client_id: clientId, queue_url: queueUrl }
+      client_id: clientId
     };
     console.log("Job payload:", payload);
     await fetch(`${API_BASE}/process/${algorithm}`, {
@@ -123,36 +159,11 @@ function App() {
       headers:{'Content-Type':'application/json'},
       body: JSON.stringify(payload)
     });
-    pollResult(jid);
+    // La ricezione avviene via WebSocket
   }
 
-  async function pollResult(jid) {
-    // semplice polling via fetch a un proxy (qui assumiamo CORS permesso)
-    let attempts = 0;
-    while (attempts < 10) {
-      const sqsRes = await fetch(`${API_BASE}/proxy-sqs?queue=${encodeURIComponent(queueUrl)}`);
-      const msgs = await sqsRes.json();
-      if (msgs.length) {
-        const m = msgs.find(m => m.job_id === jid);
-        if (m) {
-          setResult(m);
-          setStatus('done');
-          // Estrai metadati processato
-          if (m.dicom?.url) {
-            console.log('[pollResult] Presigned URL DICOM processato:', m.dicom.url);
-            extractDicomMeta(m.dicom.url).then(meta => {
-              console.log('[pollResult] Metadati processato:', meta);
-              setProcessedMeta(meta);
-            });
-          }
-          return;
-        }
-      }
-      attempts++;
-      await new Promise(r => setTimeout(r, 2000));
-    }
-    setStatus('error');
-  }
+
+  // ...rimosso: la ricezione push avviene ora nella stessa connessione WebSocket aperta su clientId...
 
   return (
     <ThemeProvider theme={esaoteTheme}>
@@ -219,17 +230,15 @@ function App() {
                   <MenuItem value="processing_1">Processing 1</MenuItem>
                   <MenuItem value="processing_6">Processing 6</MenuItem>
                   </Select>
-                  <Button variant="contained" color="primary" fullWidth disabled={provisioned || status==='provisioning'} onClick={provision} sx={{ mb: 2, fontWeight:700, fontSize:18, py:1.5, bgcolor: '#e30613', color: '#fff', '&:hover': { bgcolor: '#b8000f' } }}>
-                    {provisioned ? 'Queue provisioned' : (status==='provisioning' ? <><CircularProgress size={18} sx={{mr:1}}/> Provisioning...</> : 'Provision queue')}
-                  </Button>
-                  {(status==='ready' || status==='done') && (
-                    <Button variant="contained" color="secondary" fullWidth onClick={startJob} sx={{ mb: 2, color: '#fff', fontWeight: 700, fontSize:18, py:1.5 }}>Start processing</Button>
+                  <Button variant="contained" color="secondary" fullWidth onClick={startJob} sx={{ mb: 2, color: '#fff', fontWeight: 700, fontSize:18, py:1.5 }} disabled={status==='waiting' || !clientId}>Start processing</Button>
+                  {!clientId && (
+                    <Alert severity="warning" sx={{ mb: 2, fontWeight:600, fontSize:15, borderRadius:2 }}>
+                      Provisioning client... Attendere
+                    </Alert>
                   )}
-                  {provisioned && queueUrl && (
-                    <Alert severity="success" sx={{ mb: 2, fontWeight:600, fontSize:15, borderRadius:2 }}>
-                      <strong>Queue provisioned!</strong><br/>
-                      <span style={{fontSize:'0.95em'}}>Queue URL:</span><br/>
-                      <span style={{fontFamily:'monospace', wordBreak:'break-all', color:'#005fa3'}}>{queueUrl}</span>
+                  {wsError && (
+                    <Alert severity="error" sx={{ mb: 2, fontWeight:600, fontSize:15, borderRadius:2 }}>
+                      Real-time non disponibile, ricarica la pagina o riprova più tardi.
                     </Alert>
                   )}
                 </Box>

@@ -1,13 +1,7 @@
-# 🚀 Image Processing Pipeline
-
-Questa repository contiene i container, la logica e l’infrastruttura per una pipeline di _image processing_ event‑driven su AWS.
-
----
-
 ## 🏗️ Architettura
 
 ```
-Client → API Gateway → Lambda Router → SQS Requests → Fargate Workers → SNS Results → SQS per client → Lambda Proxy‑SQS → Frontend React
+Client → API REST → SQS Requests → Fargate → SQS Results.fifo → Lambda ResultPush → WebSocket API → Client
 ```
 
 - **Client**: invia job via HTTP
@@ -15,30 +9,99 @@ Client → API Gateway → Lambda Router → SQS Requests → Fargate Workers �
 - **Lambda Router**: valida e smista i job
 - **SQS Requests**: code FIFO per ogni algoritmo
 - **Fargate Workers**: processano i job
-- **SNS Results**: fan-out dei risultati
-- **SQS per client**: coda FIFO isolata per ogni client
-- **Lambda Proxy-SQS**: polling HTTP per frontend
-- **Frontend React**: provisioning, invio job, polling risultati
+- **SQS Results.fifo**: coda FIFO unica per tutti i risultati
+- **Lambda ResultPush**: invia i risultati via WebSocket
+- **WebSocket API**: notifiche push dei risultati ai client
+- **Frontend React**: provisioning, invio job, ricezione risultati real-time
 
 ---
 
-## 📁 Struttura del progetto
+## 5️⃣ Flusso utente end‑to‑end
 
+1. **Anteprima PACS**
+   - Inserisci `study_id`, `series_id`, `image_id`, `scope=image`
+   - Clicca _Carica Anteprima_ → visualizzi l’immagine originale
+2. **Provision client**
+   - Clicca _Provisiona client_ → ricevi solo `client_id`
+3. **Avvio processing**
+   - Clicca _Avvia processing_ → invia POST a `$API_BASE/process/processing_1` con payload PACS + `client_id`
+   - Lambda Router mette il job su SQS Requests
+   - Fargate Worker elabora e pubblica su ResultsQueue.fifo
+   - Lambda ResultPush invia il risultato via WebSocket al client giusto
+4. **Ricezione risultati (push)**
+   - Il frontend apre una WebSocket a `wss://.../prod?client_id=...`
+   - Quando arriva il messaggio (`job_id`), vedi l’immagine processata
+
+---
+
+## Output deploy
+
+- DNS PACS API LB (`PacsApiLB`)
+- API Gateway endpoint (`ProcessingApiEndpoint`)
+- URL SQS Requests per ogni algoritmo
+- WebSocket endpoint (`WebSocketEndpoint`)
+- ResultsQueueUrl (`ResultsQueueUrl`)
+
+**Variabili disponibili:**
+- `$Env:API_BASE`         → API Gateway
+- `$Env:PACS_API_BASE`    → DNS PACS API
+- `$Env:WS_ENDPOINT`      → WebSocket endpoint
+- `$Env:RESULTS_QUEUE_URL`→ ResultsQueueUrl
+
+---
+
+## Flusso architetturale (aggiornato)
+
+```mermaid
+graph LR
+    subgraph Frontend
+        FE[Frontend]
+    end
+    subgraph API
+        APIPACS[PacsApi]
+    end
+    subgraph Imports
+        PACSB[Pacs S3 Bucket]
+    end
+    subgraph Pipeline
+        PIPE[ImgPipeline ECS Cluster]
+        ALGOS[AlgosRepo ECR]
+        OUTPUT[Output S3 Bucket]
+        ROUTER[RouterFunction Lambda]
+        PROVISION[ProvisionFunction Lambda]
+        PROCAPI[ProcessingApi API Gateway]
+        WSAPI[WebSocket API]
+        RESULTSQ[ResultsQueue.fifo]
+        RESULTPUSH[ResultPushFn Lambda]
+    end
+
+    FE-->|Richiesta immagine/processamento|APIPACS
+    APIPACS-->|Recupera da|PACSB
+    APIPACS-->|Invoca pipeline|PIPE
+    PIPE-->|Scarica algoritmi|ALGOS
+    PIPE-->|Scrive risultati|OUTPUT
+    PIPE-->|Invoca|PROCAPI
+    PROCAPI-->|Gestisce routing|ROUTER
+    PROCAPI-->|Provisioning|PROVISION
+    ROUTER-->|Smista richieste|PIPE
+    PROVISION-->|Provisiona risorse|PIPE
+    PIPE-->|Scrive su|RESULTSQ
+    RESULTSQ-->|Trigger|RESULTPUSH
+    RESULTPUSH-->|Push via WS|WSAPI
+    WSAPI-->|Notifica|FE
 ```
-new_image_processing_pipeline/
-├── README.md ← questo file
-├── gen_env/
-│   └── gen_env.ps1           # script per raccogliere gli output CDK
-├── infra/
-│   ├── clients/
-│   ├── ecr/
-│   ├── lambda/
-│   └── stacks/
-├── pacs_api/
-├── containers/
-├── docs/
-└── src/
-```
+
+---
+
+## Best practice e monitoraggio
+
+- Lambda on_disconnect: fail fast (retry 0), return 200 se nessun item trovato.
+- Lambda result_push: logging avanzato e metriche CloudWatch EMF per push, failure e disconnect.
+- Lambda push: batch/concurrency SQS, Lambda Insights, retention log 1 giorno.
+- Frontend: reconnessione WebSocket automatica, ping ogni 5 min, fallback toast se non parte.
+- Monitoring: ApproximateAgeOfOldestMessage su ResultsQueue, allarmi su PushFailures/Disconnected.
+
+# Try it!
 
 ---
 
@@ -97,12 +160,6 @@ Script PowerShell per raccogliere gli output CDK:
 . ./infra/env.ps1   # importa le variabili in sessione
 ```
 
-**Variabili disponibili:**
-- `$Env:API_BASE`         → API Gateway
-- `$Env:PACS_API_BASE`    → DNS PACS API
-- `$Env:RESULTS_TOPIC_ARN`
-- `$Env:REQ1_QUEUE`, `$Env:RES1_QUEUE`, ...
-
 ---
 
 ## 4️⃣ Frontend React
@@ -121,98 +178,3 @@ const PACS_BASE = process.env.PACS_API_BASE || '<YOUR_PACS_API_BASE>';
 Apri il browser su [http://localhost:3000](http://localhost:3000).
 
 ---
-
-## 5️⃣ Flusso utente end‑to‑end
-
-1. **Anteprima PACS**
-   - Inserisci `study_id`, `series_id`, `image_id`, `scope=image`
-   - Clicca _Carica Anteprima_ → visualizzi l’immagine originale
-2. **Provision coda client**
-   - Clicca _Provisiona coda_ → ricevi `client_id` e `queue_url`
-3. **Avvio processing**
-   - Clicca _Avvia processing_ → invia POST a `$API_BASE/process/processing_1` con payload PACS + callback.client_id
-   - Lambda Router mette il job su SQS Requests
-   - Fargate Worker elabora e pubblica su SNS con attributo client_id
-   - SNS recapita solo alla tua coda FIFO client
-4. **Polling risultati**
-   - Il frontend chiama in loop `GET $API_BASE/proxy-sqs?queue=<queue_url>`
-   - Quando arriva il messaggio corretto (`job_id`), vedi l’immagine processata
-
----
-
-## 6️⃣ Script client di esempio
-
-Vedi `infra/clients/send-http-job.ps1` per inviare un job via PowerShell.
-
-Per simulare il PACS‑API in locale, consulta la documentazione in `docs/`.
-
----
-
-## 7️⃣ Cleanup
-
-Per rimuovere tutto:
-```bash
-cd infra
-cdk destroy --all --force
-```
-
----
-
-## 📚 Note
-- I worker Fargate non leggono direttamente da SQS, ma ricevono job inoltrati dalla Lambda router.
-- Per estendere la pipeline o aggiungere algoritmi, consulta `src/medical_image_processing/README.md`.
-
----
-
-# Flusso architetturale: richiesta immagine da frontend a PACS e processing
-
-```mermaid
-graph LR
-    subgraph Frontend
-        FE[Frontend]
-    end
-    subgraph API
-        APIPACS[PacsApi (LoadBalancer + Service)]
-    end
-    subgraph Imports
-        PACSB[Pacs S3 Bucket (esistente)]
-    end
-    subgraph Pipeline[Image Processing Pipeline]
-        PIPE[ImgPipeline (ECS Cluster + Tasks)]
-        ALGOS[AlgosRepo (ECR)]
-        OUTPUT[Output S3 Bucket]
-        ROUTER[RouterFunction (Lambda)]
-        PROVISION[ProvisionFunction (Lambda)]
-        PROXYSIG[ProxySigFunction (Lambda)]
-        PROCAPI[ProcessingApi (API Gateway)]
-    end
-
-    FE-->|Richiesta immagine/processamento|APIPACS
-    APIPACS-->|Recupera da|PACSB
-    APIPACS-->|Invoca pipeline|PIPE
-    PIPE-->|Scarica algoritmi|ALGOS
-    PIPE-->|Scrive risultati|OUTPUT
-    PIPE-->|Invoca|PROCAPI
-    PROCAPI-->|Gestisce routing|ROUTER
-    PROCAPI-->|Provisioning|PROVISION
-    PROCAPI-->|Proxy firma|PROXYSIG
-    ROUTER-->|Smista richieste|PIPE
-    PROVISION-->|Provisiona risorse|PIPE
-    PROXYSIG-->|Proxy firma|PIPE
-    FE-->|Riceve risultato|FE
-```
-
-## Descrizione step-by-step
-1. **Frontend** invia una richiesta di immagine/processamento.
-2. La richiesta arriva al **PacsApi** (LoadBalancer + Service).
-3. **PacsApi** recupera l’immagine dal bucket S3 PACS esistente.
-4. **PacsApi** invoca la **ImgPipeline** (cluster ECS) per processare l’immagine.
-5. La pipeline scarica gli algoritmi da **AlgosRepo** (ECR) e processa l’immagine.
-6. I risultati vengono scritti su **Output S3 Bucket**.
-7. La pipeline interagisce con **ProcessingApi** (API Gateway) per gestire routing, provisioning e firma tramite Lambda:
-   - **RouterFunction** smista le richieste ai task giusti.
-   - **ProvisionFunction** gestisce il provisioning delle risorse necessarie.
-   - **ProxySigFunction** si occupa della firma dei risultati.
-8. Il **Frontend** riceve il risultato finale.
-
-> Ogni componente è rappresentato da uno stack o risorsa CDK nella cartella `infra`.
