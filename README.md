@@ -52,7 +52,7 @@ Client → API REST → SQS Requests → Fargate → SQS Results.fifo → Lambda
 
 ## Flusso architetturale (aggiornato)
 
-![architecture31072025](docs\architecture31072025.png)
+![architecture31072025](docs/architecture31072025.png)
 
 ---
 
