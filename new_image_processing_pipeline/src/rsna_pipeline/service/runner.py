@@ -194,6 +194,7 @@ def main() -> None:
                         "key": dest_key,
                         "url": presigned,
                     },
+                    "client_id": os.environ.get("CLIENT_ID", "unknown")
                 }
                 print(f"[runner] sending result to SQS: {os.environ['RESULT_QUEUE']}")
                 print(f"[runner] SQS message: {json.dumps(message)}")
