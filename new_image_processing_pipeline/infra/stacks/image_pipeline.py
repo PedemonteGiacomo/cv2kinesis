@@ -9,15 +9,14 @@ from aws_cdk import (
     aws_applicationautoscaling as appscaling,
     aws_logs as logs,
     aws_ecr as ecr,
-    CfnOutput,
     aws_lambda as _lambda,
     aws_apigateway as apigw,
     aws_iam as iam,
-    aws_dynamodb as ddb
+    aws_dynamodb as ddb,
+    aws_apigatewayv2 as apigwv2,
+    CfnOutput
 )
-from aws_cdk.aws_apigatewayv2_alpha import WebSocketApi, WebSocketStage
-from aws_cdk.aws_apigatewayv2_alpha import WebSocketRouteIntegration, WebSocketLambdaIntegration
-from aws_cdk.aws_apigatewayv2_alpha import WebSocketRouteKey
+from aws_cdk.aws_apigatewayv2_integrations import WebSocketLambdaIntegration
 from constructs import Construct
 import json
 import os
@@ -75,7 +74,7 @@ class ImagePipeline(Stack):
         )
 
         # WebSocket API
-        ws_api = WebSocketApi(self, "WebSocketApi",
+        ws_api = apigwv2.WebSocketApi(self, "WebSocketApi",
             connect_route_options={
                 "integration": WebSocketLambdaIntegration("OnConnectIntegration", _lambda.Function.from_function_arn(self, "OnConnectFnImport", "arn:aws:lambda:region:account-id:function:placeholder"))
             },
@@ -83,26 +82,29 @@ class ImagePipeline(Stack):
                 "integration": WebSocketLambdaIntegration("OnDisconnectIntegration", _lambda.Function.from_function_arn(self, "OnDisconnectFnImport", "arn:aws:lambda:region:account-id:function:placeholder"))
             }
         )
-        ws_stage = WebSocketStage(self, "WebSocketStage", web_socket_api=ws_api, stage_name="prod", auto_deploy=True)
+        ws_stage = apigwv2.WebSocketStage(self, "WebSocketStage", web_socket_api=ws_api, stage_name="prod", auto_deploy=True)
 
         # Lambda OnConnect
+        insights_layer = _lambda.LayerVersion.from_layer_version_arn(
+            self, "InsightsLayer", "arn:aws:lambda:us-east-1:580247275435:layer:LambdaInsightsExtension:40"
+        )
         on_connect_fn = _lambda.Function(
             self, "OnConnectFn",
             runtime=_lambda.Runtime.PYTHON_3_11,
             handler="on_connect.lambda_handler",
             code=_lambda.Code.from_asset(os.path.join(os.path.dirname(__file__), "../lambda")),
-            environment={"CONN_TABLE": connections.table_name}
+            environment={"CONN_TABLE": connections.table_name},
+            layers=[insights_layer]
         )
-        # Lambda OnDisconnect
         on_disconnect_fn = _lambda.Function(
             self, "OnDisconnectFn",
             runtime=_lambda.Runtime.PYTHON_3_11,
             handler="on_disconnect.lambda_handler",
             code=_lambda.Code.from_asset(os.path.join(os.path.dirname(__file__), "../lambda")),
             environment={"CONN_TABLE": connections.table_name},
-            retry_attempts=0
+            retry_attempts=0,
+            layers=[insights_layer]
         )
-        # Lambda ResultPush
         push_fn = _lambda.Function(
             self, "ResultPushFn",
             runtime=_lambda.Runtime.PYTHON_3_11,
@@ -111,21 +113,23 @@ class ImagePipeline(Stack):
             environment={
                 "CONN_TABLE": connections.table_name,
                 "WS_CALLBACK_URL": f"https://{ws_api.api_id}.execute-api.{self.region}.amazonaws.com/{ws_stage.stage_name}"
-            }
+            },
+            layers=[insights_layer]
         )
         # SQS event source con batch/concurrency
         from aws_cdk.aws_lambda_event_sources import SqsEventSource
         push_fn.add_event_source(SqsEventSource(results_q, batch_size=5, max_concurrency=10))
         results_q.grant_consume_messages(push_fn)
-        # Lambda Insights + log retention 1 giorno
-        from aws_cdk.aws_lambda_insights import LambdaInsightsVersion
+        # Log retention 1 giorno + Lambda Insights policy
         for fn in [on_connect_fn, on_disconnect_fn, push_fn]:
             logs.LogGroup(self, f"{fn.node.id}Logs",
                 log_group_name=f"/aws/lambda/{fn.function_name}",
                 removal_policy=RemovalPolicy.DESTROY,
                 retention=logs.RetentionDays.ONE_DAY,
             )
-            fn.add_extension(LambdaInsightsVersion.V1_0_119)
+            fn.role.add_managed_policy(
+                iam.ManagedPolicy.from_aws_managed_policy_name("CloudWatchLambdaInsightsExecutionRolePolicy")
+            )
         connections.grant_read_write_data(on_connect_fn)
         connections.grant_read_write_data(on_disconnect_fn)
         connections.grant_read_write_data(push_fn)
