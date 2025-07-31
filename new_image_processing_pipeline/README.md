@@ -100,3 +100,81 @@ graph LR
 - Lambda push: batch/concurrency SQS, Lambda Insights, retention log 1 giorno.
 - Frontend: reconnessione WebSocket automatica, ping ogni 5 min, fallback toast se non parte.
 - Monitoring: ApproximateAgeOfOldestMessage su ResultsQueue, allarmi su PushFailures/Disconnected.
+
+# Try it!
+
+---
+
+## 🛠️ Prerequisiti
+
+- AWS CLI configurato (CloudFormation, ECR, ECS, SQS, SNS, Lambda, IAM)
+- AWS CDK v2
+- Docker
+- PowerShell (Windows) o Bash (Linux/macOS)
+- Node.js + npm (per il frontend React)
+
+---
+
+## 1️⃣ Preparazione ECR
+
+**Crea i repository e push delle immagini**
+
+```powershell
+cd infra/ecr
+./create-ecr-repos.ps1 -Region <REGION> -Account <ACCOUNT_ID>
+docker build --no-cache -t mip-base:latest -f containers/base/Dockerfile . #se si vuole ripartire alla base senza cache
+./push-algos.ps1 -Region <REGION> -Account <ACCOUNT_ID>
+./push-pacs.ps1 -Region <REGION> -Account <ACCOUNT_ID>
+```
+
+> _Nota: <REGION> es. eu-central-1 o us-east-1; <ACCOUNT_ID> es. 544547773663._
+
+---
+
+## 2️⃣ Deploy infrastruttura con CDK
+
+```bash
+cd infra
+npm install   # solo se ci sono dipendenze node
+cdk deploy Imports --require-approval never
+cdk deploy PacsApiStack --require-approval never
+cdk deploy ImgPipeline --require-approval never
+# oppure
+cdk deploy --all --require-approval never
+```
+
+**Output deploy:**
+- DNS PACS API LB (`PacsApiLB`)
+- API Gateway endpoint (`ProcessingApiEndpoint`)
+- URL SQS Requests/Results per ogni algoritmo
+- SNS Topic ARN (`ImageResultsTopicArn`)
+
+---
+
+## 3️⃣ Generazione variabili d’ambiente
+
+Script PowerShell per raccogliere gli output CDK:
+
+```powershell
+./gen_env/gen_env.ps1 -ImgStack "ImgPipeline" -PacsStack "PacsApiStack"
+. ./infra/env.ps1   # importa le variabili in sessione
+```
+
+---
+
+## 4️⃣ Frontend React
+
+```bash
+cd infra/clients/react-app
+npm ci
+npm start
+```
+
+Nel file `src/index.jsx`:
+```js
+const API_BASE  = process.env.API_BASE    || '<YOUR_API_GATEWAY_BASE>';
+const PACS_BASE = process.env.PACS_API_BASE || '<YOUR_PACS_API_BASE>';
+```
+Apri il browser su [http://localhost:3000](http://localhost:3000).
+
+---

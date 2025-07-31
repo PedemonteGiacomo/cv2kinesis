@@ -24,11 +24,10 @@ const API_BASE  = (process.env.REACT_APP_API_BASE || '<default>').replace(/\/$/,
 const PACS_BASE = process.env.REACT_APP_PACS_BASE   || '<default>';
 const WS_ENDPOINT = process.env.REACT_APP_WS_ENDPOINT || '<ws-endpoint>';
 
+
 function App() {
   const [originalMeta, setOriginalMeta] = useState(null);
   const [processedMeta, setProcessedMeta] = useState(null);
-
-  // Estrae i metadati DICOM da una url
   async function extractDicomMeta(url) {
     try {
       console.log('[extractDicomMeta] Fetching DICOM from:', url);
@@ -40,7 +39,6 @@ function App() {
       const arrayBuffer = await res.arrayBuffer();
       const dicomData = dcmjsData.DicomMessage.readFile(arrayBuffer);
       const dataset = dcmjsData.DicomMetaDictionary.naturalizeDataset(dicomData.dict);
-      // ProtocolName può essere su 0018,1030
       if (dicomData.dict['x00181030'] && !dataset.ProtocolName) {
         dataset.ProtocolName = dicomData.dict['x00181030'].Value?.[0] || '';
       }
@@ -51,7 +49,6 @@ function App() {
       return null;
     }
   }
-  const [clientId, setClientId] = useState(null);
   const [jobId, setJobId] = useState(null);
   const [status, setStatus] = useState('idle');
   const [result, setResult] = useState(null);
@@ -60,27 +57,9 @@ function App() {
   const [seriesId,  setSeriesId]  = useState('300/AiCE_BODY-SHARP_300_172938.900');
   const [imageId,   setImageId]   = useState('IM-0135-0095.dcm');
   const [scope,     setScope]     = useState('image');
-  // const [previewUrl,setPreviewUrl]= useState(null); // non serve più
   const [algorithm, setAlgorithm] = useState('processing_1');
-  const [provisioned, setProvisioned] = useState(false);
   const [ws, setWs] = useState(null);
-  const [originalUrl, setOriginalUrl] = useState(null); // url DICOM originale per processing
-
-  async function provision() {
-    const cid = uuid();
-    setStatus('provisioning');
-    setResult(null);
-    setWsError(false);
-    const res = await fetch(`${API_BASE}/provision`, {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({client_id: cid})
-    });
-    const j = await res.json();
-    setClientId(j.client_id);
-    setProvisioned(true);
-    setStatus('ready');
-  }
+  const [originalUrl, setOriginalUrl] = useState(null);
 
   async function startJob() {
     const jid = uuid();
@@ -113,8 +92,7 @@ function App() {
         series_id: seriesId,
         image_id: imageId,
         scope: scope
-      },
-      client_id: clientId
+      }
     };
     console.log("Job payload:", payload);
     await fetch(`${API_BASE}/process/${algorithm}`, {
@@ -128,18 +106,17 @@ function App() {
 
   // WebSocket ricezione risultati push
   React.useEffect(() => {
-    if (!clientId) return;
+    if (!jobId) return;
     let retries = 0;
     let wsock;
     let pingInterval;
     let closed = false;
     const connect = () => {
-      wsock = new window.WebSocket(`${WS_ENDPOINT}?client_id=${clientId}`);
+      wsock = new window.WebSocket(`${WS_ENDPOINT}`);
       setWs(wsock);
       wsock.onopen = () => {
         retries = 0;
         setWsError(false);
-        // Ping ogni 5 min
         pingInterval = setInterval(() => {
           if (wsock.readyState === 1) wsock.send(JSON.stringify({type:'ping'}));
         }, 5*60*1000);
@@ -178,7 +155,7 @@ function App() {
       clearInterval(pingInterval);
     };
     // eslint-disable-next-line
-  }, [clientId, jobId]);
+  }, [jobId]);
 
   return (
     <ThemeProvider theme={esaoteTheme}>
@@ -245,12 +222,7 @@ function App() {
                   <MenuItem value="processing_1">Processing 1</MenuItem>
                   <MenuItem value="processing_6">Processing 6</MenuItem>
                   </Select>
-                  <Button variant="contained" color="primary" fullWidth disabled={provisioned || status==='provisioning'} onClick={provision} sx={{ mb: 2, fontWeight:700, fontSize:18, py:1.5, bgcolor: '#e30613', color: '#fff', '&:hover': { bgcolor: '#b8000f' } }}>
-                    {provisioned ? 'Client provisioned' : (status==='provisioning' ? <><CircularProgress size={18} sx={{mr:1}}/> Provisioning...</> : 'Provision client')}
-                  </Button>
-                  {(status==='ready' || status==='done') && (
-                    <Button variant="contained" color="secondary" fullWidth onClick={startJob} sx={{ mb: 2, color: '#fff', fontWeight: 700, fontSize:18, py:1.5 }}>Start processing</Button>
-                  )}
+                  <Button variant="contained" color="secondary" fullWidth onClick={startJob} sx={{ mb: 2, color: '#fff', fontWeight: 700, fontSize:18, py:1.5 }} disabled={status==='waiting'}>Start processing</Button>
                   {wsError && (
                     <Alert severity="error" sx={{ mb: 2, fontWeight:600, fontSize:15, borderRadius:2 }}>
                       Real-time non disponibile, ricarica la pagina o riprova più tardi.
