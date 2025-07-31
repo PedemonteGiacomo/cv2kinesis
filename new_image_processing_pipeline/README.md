@@ -58,10 +58,10 @@ graph LR
         FE[Frontend]
     end
     subgraph API
-        APIPACS[PacsApi (LoadBalancer + Service)]
+        APIPACS[PacsApi]
     end
     subgraph Imports
-        PACSB[Pacs S3 Bucket (esistente)]
+        PACSB[Pacs S3 Bucket]
     end
     subgraph Pipeline[Image Processing Pipeline]
         PIPE[ImgPipeline (ECS Cluster + Tasks)]
