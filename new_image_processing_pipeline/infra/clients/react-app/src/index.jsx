@@ -61,6 +61,7 @@ function App() {
   const [algorithm, setAlgorithm] = useState('processing_1');
   const [ws, setWs] = useState(null);
   const [originalUrl, setOriginalUrl] = useState(null);
+
   // Provision client_id on mount if not present
   React.useEffect(() => {
     if (!clientId) {
@@ -74,6 +75,45 @@ function App() {
         .catch(() => setClientId(null));
     }
   }, [clientId]);
+
+  // WebSocket connessione/disconnessione con client_id, ricezione risultati push
+  React.useEffect(() => {
+    if (!clientId) return;
+    let wsock;
+    let pingInterval;
+    let closed = false;
+    wsock = new window.WebSocket(`${WS_ENDPOINT}?client_id=${encodeURIComponent(clientId)}`);
+    setWs(wsock);
+    wsock.onopen = () => {
+      pingInterval = setInterval(() => {
+        if (wsock.readyState === 1) wsock.send(JSON.stringify({type:'ping'}));
+      }, 5*60*1000);
+    };
+    wsock.onmessage = ev => {
+      try {
+        const msg = JSON.parse(ev.data);
+        if (msg.job_id && jobId && msg.job_id === jobId) {
+          setResult(msg);
+          setStatus('done');
+          if (msg.dicom?.url) {
+            extractDicomMeta(msg.dicom.url).then(meta => setProcessedMeta(meta));
+          }
+        }
+      } catch {}
+    };
+    wsock.onclose = () => {
+      clearInterval(pingInterval);
+    };
+    wsock.onerror = () => {
+      wsock.close();
+    };
+    return () => {
+      closed = true;
+      if (wsock) wsock.close();
+      clearInterval(pingInterval);
+    };
+    // eslint-disable-next-line
+  }, [clientId, jobId]);
 
   async function startJob() {
     if (!clientId) {
@@ -123,58 +163,7 @@ function App() {
   }
 
 
-  // WebSocket ricezione risultati push
-  React.useEffect(() => {
-    if (!jobId) return;
-    let retries = 0;
-    let wsock;
-    let pingInterval;
-    let closed = false;
-    const connect = () => {
-      wsock = new window.WebSocket(`${WS_ENDPOINT}`);
-      setWs(wsock);
-      wsock.onopen = () => {
-        retries = 0;
-        setWsError(false);
-        pingInterval = setInterval(() => {
-          if (wsock.readyState === 1) wsock.send(JSON.stringify({type:'ping'}));
-        }, 5*60*1000);
-      };
-      wsock.onmessage = ev => {
-        try {
-          const msg = JSON.parse(ev.data);
-          if (msg.job_id === jobId) {
-            setResult(msg);
-            setStatus('done');
-            wsock.close();
-            if (msg.dicom?.url) {
-              extractDicomMeta(msg.dicom.url).then(meta => setProcessedMeta(meta));
-            }
-          }
-        } catch {}
-      };
-      wsock.onclose = () => {
-        clearInterval(pingInterval);
-        if (closed) return;
-        if (status !== 'done' && retries < 5) {
-          retries++;
-          setTimeout(connect, 1000 * retries);
-        } else if (status !== 'done') {
-          setWsError(true);
-        }
-      };
-      wsock.onerror = () => {
-        wsock.close();
-      };
-    };
-    connect();
-    return () => {
-      closed = true;
-      if (wsock) wsock.close();
-      clearInterval(pingInterval);
-    };
-    // eslint-disable-next-line
-  }, [jobId]);
+  // ...rimosso: la ricezione push avviene ora nella stessa connessione WebSocket aperta su clientId...
 
   return (
     <ThemeProvider theme={esaoteTheme}>
