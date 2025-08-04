@@ -50,6 +50,16 @@ Client → API REST → SQS Requests → Fargate → SQS Results.fifo → Lambda
 
 ---
 
+## Best practice e monitoraggio
+
+- Lambda on_disconnect: fail fast (retry 0), return 200 se nessun item trovato.
+- Lambda result_push: logging avanzato e metriche CloudWatch EMF per push, failure e disconnect.
+- Lambda push: batch/concurrency SQS, Lambda Insights, retention log 1 giorno.
+- Frontend: reconnessione WebSocket automatica, ping ogni 5 min, fallback toast se non parte.
+- Monitoring: ApproximateAgeOfOldestMessage su ResultsQueue, allarmi su PushFailures/Disconnected.
+
+---
+
 # Diagrammi architetturali
 
 ## Focus su Kinase - DICOM image(s) processing
@@ -60,14 +70,6 @@ Client → API REST → SQS Requests → Fargate → SQS Results.fifo → Lambda
 ![architecture31072025](docs/architecture31072025.png)
 
 ---
-
-## Best practice e monitoraggio
-
-- Lambda on_disconnect: fail fast (retry 0), return 200 se nessun item trovato.
-- Lambda result_push: logging avanzato e metriche CloudWatch EMF per push, failure e disconnect.
-- Lambda push: batch/concurrency SQS, Lambda Insights, retention log 1 giorno.
-- Frontend: reconnessione WebSocket automatica, ping ogni 5 min, fallback toast se non parte.
-- Monitoring: ApproximateAgeOfOldestMessage su ResultsQueue, allarmi su PushFailures/Disconnected.
 
 # Try it!
 
