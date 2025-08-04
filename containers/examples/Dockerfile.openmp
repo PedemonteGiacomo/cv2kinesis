@@ -1,0 +1,35 @@
+# Dockerfile per algoritmi OpenMP/nativi
+FROM python:3.11-slim
+
+# Installa compilatori e librerie OpenMP
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc g++ make libgomp1 curl unzip jq \
+    && rm -rf /var/lib/apt/lists/*
+
+# Installa AWS CLI v2
+RUN curl -sSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscliv2.zip \
+    && unzip -q /tmp/awscliv2.zip -d /tmp \
+    && /tmp/aws/install --bin-dir /usr/local/bin --install-dir /usr/local/aws-cli --update \
+    && rm -rf /tmp/aws /tmp/awscliv2.zip
+
+WORKDIR /app
+
+# Copia l'adapter Python
+COPY containers/examples/openmp_adapter.py /app/adapter.py
+
+# Copia i tuoi eseguibili compilati (esempio)
+# COPY bin/ /app/bin/
+# RUN chmod +x /app/bin/*
+
+# Esempio: compila un algoritmo semplice in C++
+COPY containers/examples/simple_algo.cpp /app/simple_algo.cpp
+RUN g++ -fopenmp -O2 -o /app/bin/my_openmp /app/simple_algo.cpp
+
+# Installa dipendenze Python
+RUN pip install --no-cache-dir boto3 requests pydicom
+
+# Rendi eseguibile l'adapter
+RUN chmod +x /app/adapter.py
+
+# Comando di default - puoi anche usare ["/app/worker.sh"] per Python
+ENTRYPOINT ["/app/adapter.py"]

@@ -1,18 +1,30 @@
-## 🏗️ Architettura
+## 🏗️ Architettura Dinamica
 
 ```
-Client → API REST → SQS Requests → Fargate → SQS Results.fifo → Lambda ResultPush → WebSocket API → Client
+Client → API REST → DynamoDB Registry → SQS Requests → Fargate → SQS Results.fifo → Lambda ResultPush → WebSocket API → Client
 ```
 
+### Componenti Principali
+## 4️⃣ Generazione variabili d'ambiente
 - **Client**: invia job via HTTP
-- **API Gateway**: espone endpoint REST
-- **Lambda Router**: valida e smista i job
-- **SQS Requests**: code FIFO per ogni algoritmo
-- **Fargate Workers**: processano i job
+- **API Gateway**: espone endpoint REST + Admin API
+- **DynamoDB Registry**: registro dinamico degli algoritmi
+- **Provisioner Lambda**: crea risorse ECS/SQS on-demand
+- **Dynamic Router**: smista job basandosi sul registro
+- **SQS Requests**: code FIFO create dinamicamente per ogni algoritmo
+- **Fargate Workers**: processano i job (Python o OpenMP/nativi)
 - **SQS Results.fifo**: coda FIFO unica per tutti i risultati
 - **Lambda ResultPush**: invia i risultati via WebSocket
 - **WebSocket API**: notifiche push dei risultati ai client
 - **Frontend React**: provisioning, invio job, ricezione risultati real-time
+
+### 🆕 Nuove Funzionalità
+
+- ✅ **Registro dinamico** - aggiungi algoritmi senza redeploy CDK
+- ✅ **API Admin** - gestione algoritmi via REST API
+- ✅ **Supporto OpenMP** - algoritmi nativi con adapter pattern
+- ✅ **Provisioning automatico** - code e servizi creati automaticamente
+- ✅ **Sicurezza migliorata** - ruoli IAM granulari per algoritmo
 
 ---
 
@@ -103,11 +115,18 @@ docker build --no-cache -t mip-base:latest -f containers/base/Dockerfile . #se s
 
 ## 2️⃣ Deploy infrastruttura con CDK
 
+**Deploy completo con script automatico:**
+```powershell
+cd infra
+.\deploy-complete.ps1 -Region us-east-1 -Account 544547773663
+```
+
+**Oppure manuale:**
 ```bash
 cd infra
 npm install   # solo se ci sono dipendenze node
 cdk deploy Imports --require-approval never
-cdk deploy PacsApiStack --require-approval never
+cdk deploy PacsApi --require-approval never
 cdk deploy ImgPipeline --require-approval never
 # oppure
 cdk deploy --all --require-approval never
@@ -116,8 +135,65 @@ cdk deploy --all --require-approval never
 **Output deploy:**
 - DNS PACS API LB (`PacsApiLB`)
 - API Gateway endpoint (`ProcessingApiEndpoint`)
-- URL SQS Requests/Results per ogni algoritmo
-- SNS Topic ARN (`ImageResultsTopicArn`)
+- WebSocket endpoint (`WebSocketEndpoint`)
+- ResultsQueueUrl (`ResultsQueueUrl`)
+- Algorithm Registry table (`AlgoTableName`)
+
+---
+
+## 3️⃣ Gestione Algoritmi (Nuovo!)
+
+### Registra algoritmo Python esistente
+```bash
+curl -X POST "$API_BASE/admin/algorithms" \
+  -H "Content-Type: application/json" \
+  -H "x-admin-key: dev-admin" \
+  -d '{
+    "algo_id": "processing_1",
+    "image_uri": "544547773663.dkr.ecr.us-east-1.amazonaws.com/mip-algos:processing_1",
+    "cpu": 1024,
+    "memory": 2048,
+    "command": ["/app/worker.sh"]
+  }'
+```
+
+### Registra algoritmo OpenMP/nativo
+```bash
+curl -X POST "$API_BASE/admin/algorithms" \
+  -H "Content-Type: application/json" \
+  -H "x-admin-key: dev-admin" \
+  -d '{
+    "algo_id": "my_openmp_algo",
+    "image_uri": "544547773663.dkr.ecr.us-east-1.amazonaws.com/mip-algos:openmp",
+    "cpu": 2048,
+    "memory": 4096,
+    "command": ["/app/adapter.py"],
+    "env": {"OMP_NUM_THREADS": "4"}
+  }'
+```
+
+### Gestione algoritmi
+```bash
+# Lista tutti gli algoritmi
+curl -H "x-admin-key: dev-admin" "$API_BASE/admin/algorithms"
+
+# Dettagli specifico algoritmo
+curl -H "x-admin-key: dev-admin" "$API_BASE/admin/algorithms/processing_1"
+
+# Aggiorna algoritmo
+curl -X PATCH "$API_BASE/admin/algorithms/processing_1" \
+  -H "Content-Type: application/json" \
+  -H "x-admin-key: dev-admin" \
+  -d '{"cpu": 2048, "memory": 4096}'
+
+# Scale down temporaneo
+curl -X DELETE "$API_BASE/admin/algorithms/processing_1" \
+  -H "x-admin-key: dev-admin"
+
+# Rimozione completa
+curl -X DELETE "$API_BASE/admin/algorithms/processing_1?hard=true" \
+  -H "x-admin-key: dev-admin"
+```
 
 ---
 
