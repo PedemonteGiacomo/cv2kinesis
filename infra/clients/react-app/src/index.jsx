@@ -62,17 +62,13 @@ function App() {
   const [ws, setWs] = useState(null);
   const [originalUrl, setOriginalUrl] = useState(null);
 
-  // Provision client_id on mount if not present
+  // Auto-generate client_id on mount if not present
   React.useEffect(() => {
     if (!clientId) {
-      fetch(`${API_BASE}/provision`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({})
-      })
-        .then(res => res.json())
-        .then(j => setClientId(j.client_id))
-        .catch(() => setClientId(null));
+      // Genera client_id localmente invece di chiamare /provision
+      const newClientId = uuid();
+      setClientId(newClientId);
+      console.log('[CLIENT] Generated client_id:', newClientId);
     }
   }, [clientId]);
 

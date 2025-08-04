@@ -51,20 +51,54 @@ def _queue_arn(queue_url):
     return a
 
 def _attach_queue_policy_to_taskrole(queue_arn):
+    """
+    Aggiungi il queue_arn alla policy esistente invece di sovrascriverla.
+    Questo permette a più algoritmi di condividere la stessa TaskRole.
+    """
     pol_name = "AllowReceiveFromAlgoQueues"
-    stmt = {
-        "Version":"2012-10-17",
-        "Statement":[
-            {
-                "Effect":"Allow",
-                "Action":[
-                    "sqs:ReceiveMessage","sqs:DeleteMessage","sqs:GetQueueAttributes","sqs:ChangeMessageVisibility"
-                ],
-                "Resource": queue_arn
-            }
-        ]
-    }
-    iam.put_role_policy(RoleName=TASK_ROLE.split("/")[-1], PolicyName=pol_name, PolicyDocument=json.dumps(stmt))
+    role_name = TASK_ROLE.split("/")[-1]
+    
+    try:
+        # Tenta di ottenere la policy esistente
+        existing_policy = iam.get_role_policy(RoleName=role_name, PolicyName=pol_name)
+        policy_doc = json.loads(existing_policy["PolicyDocument"])
+        
+        # Ottieni la lista di risorse esistenti
+        existing_resources = policy_doc["Statement"][0]["Resource"]
+        if isinstance(existing_resources, str):
+            existing_resources = [existing_resources]
+            
+        # Aggiungi il nuovo ARN se non esiste già
+        if queue_arn not in existing_resources:
+            existing_resources.append(queue_arn)
+            policy_doc["Statement"][0]["Resource"] = existing_resources
+            
+            # Aggiorna la policy
+            iam.put_role_policy(
+                RoleName=role_name, 
+                PolicyName=pol_name, 
+                PolicyDocument=json.dumps(policy_doc)
+            )
+            print(f"Updated IAM policy with new queue ARN: {queue_arn}")
+        else:
+            print(f"Queue ARN already exists in policy: {queue_arn}")
+            
+    except iam.exceptions.NoSuchEntityException:
+        # La policy non esiste, creala da zero
+        stmt = {
+            "Version":"2012-10-17",
+            "Statement":[
+                {
+                    "Effect":"Allow",
+                    "Action":[
+                        "sqs:ReceiveMessage","sqs:DeleteMessage","sqs:GetQueueAttributes","sqs:ChangeMessageVisibility"
+                    ],
+                    "Resource": [queue_arn]  # Usa array anche per il primo elemento
+                }
+            ]
+        }
+        iam.put_role_policy(RoleName=role_name, PolicyName=pol_name, PolicyDocument=json.dumps(stmt))
+        print(f"Created new IAM policy with queue ARN: {queue_arn}")
 
 def _register_taskdef(algo_id, image_uri, cpu, memory, command, env_dict):
     _ensure_log_group(_log_group(algo_id))

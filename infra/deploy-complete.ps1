@@ -58,7 +58,7 @@ try {
         if ($LASTEXITCODE -ne 0) { throw "Environment generation failed" }
 
         # Import variables
-        . .\env.ps1
+        . .\gen_env\env.ps1
         Write-Host "Environment variables loaded." -ForegroundColor Green
     }
 
@@ -67,8 +67,8 @@ try {
     
     if (-not $env:API_BASE) {
         Write-Host "Loading environment variables..." -ForegroundColor Yellow
-        if (Test-Path ".\env.ps1") {
-            . .\env.ps1
+        if (Test-Path ".\gen_env\env.ps1") {
+            . .\gen_env\env.ps1
         } else {
             throw "Environment file not found. Run without -TestOnly first."
         }
