@@ -50,7 +50,12 @@ Client → API REST → SQS Requests → Fargate → SQS Results.fifo → Lambda
 
 ---
 
-## Flusso architetturale (aggiornato)
+# Diagrammi architetturali
+
+## Focus su Kinase - DICOM image(s) processing
+![architecturekinase31072025](docs/architecturekinase31072025.png)
+
+## Flusso architetturale (completo)
 
 ![architecture31072025](docs/architecture31072025.png)
 
