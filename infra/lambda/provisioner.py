@@ -1,4 +1,5 @@
 import os, json, boto3, time
+from decimal import Decimal
 from botocore.exceptions import ClientError
 
 dynamodb = boto3.resource("dynamodb")
@@ -61,28 +62,28 @@ def _attach_queue_policy_to_taskrole(queue_arn):
     try:
         # Tenta di ottenere la policy esistente
         existing_policy = iam.get_role_policy(RoleName=role_name, PolicyName=pol_name)
-        policy_doc = json.loads(existing_policy["PolicyDocument"])
-        
+        policy_doc = existing_policy["PolicyDocument"]  # Fix: già dict, non serve json.loads
+
         # Ottieni la lista di risorse esistenti
         existing_resources = policy_doc["Statement"][0]["Resource"]
         if isinstance(existing_resources, str):
             existing_resources = [existing_resources]
-            
+
         # Aggiungi il nuovo ARN se non esiste già
         if queue_arn not in existing_resources:
             existing_resources.append(queue_arn)
             policy_doc["Statement"][0]["Resource"] = existing_resources
-            
+
             # Aggiorna la policy
             iam.put_role_policy(
-                RoleName=role_name, 
-                PolicyName=pol_name, 
+                RoleName=role_name,
+                PolicyName=pol_name,
                 PolicyDocument=json.dumps(policy_doc)
             )
             print(f"Updated IAM policy with new queue ARN: {queue_arn}")
         else:
             print(f"Queue ARN already exists in policy: {queue_arn}")
-            
+
     except iam.exceptions.NoSuchEntityException:
         # La policy non esiste, creala da zero
         stmt = {
@@ -187,8 +188,12 @@ def handler(event, _):
     table    = dynamodb.Table(TABLE)
 
     item = table.get_item(Key={"algorithm_id": algo_id}).get("Item")
+    def decimal_default(obj):
+        if isinstance(obj, Decimal):
+            return float(obj)
+        raise TypeError
     if not item:
-        return {"status":"error","message":"algo not found"}
+        return json.dumps({"status":"error","message":"algo not found"}, default=decimal_default)
 
     try:
         if action in ("provision","update"):
@@ -196,6 +201,9 @@ def handler(event, _):
             qurl = _ensure_requests_queue(algo_id)
             qarn = _queue_arn(qurl)
             _attach_queue_policy_to_taskrole(qarn)
+
+            # Ensure PassRole permission (runtime check, but should be set in CDK)
+            # This is a reminder: permission must be set in CDK, not here in code
 
             # 2) taskdef
             env = dict(item.get("env") or {})
@@ -227,7 +235,7 @@ def handler(event, _):
                     }
                 }
             )
-            return {"status":"ok","op":op}
+            return json.dumps({"status":"ok","op":op}, default=decimal_default)
 
         if action == "scale_down":
             # porta a 0 il servizio
@@ -238,7 +246,7 @@ def handler(event, _):
                 ExpressionAttributeNames={"#st":"status"},
                 ExpressionAttributeValues={":s":"SCALED_DOWN"}
             )
-            return {"status":"ok","op":"scaled_down"}
+            return json.dumps({"status":"ok","op":"scaled_down"}, default=decimal_default)
 
         if action == "delete_hard":
             # best-effort: scale to 0 + (facoltativo) delete service; non eliminiamo SQS per default
@@ -254,15 +262,17 @@ def handler(event, _):
                 ExpressionAttributeNames={"#st":"status"},
                 ExpressionAttributeValues={":s":"DELETED"}
             )
-            return {"status":"ok","op":"deleted"}
+            return json.dumps({"status":"ok","op":"deleted"}, default=decimal_default)
 
-        return {"status":"error","message":"unknown action"}
+        return json.dumps({"status":"error","message":"unknown action"}, default=decimal_default)
 
     except Exception as e:
+        # Fix: ensure last_error is always a string
         table.update_item(
             Key={"algorithm_id": algo_id},
             UpdateExpression="SET #st=:s, last_error=:e",
             ExpressionAttributeNames={"#st":"status"},
             ExpressionAttributeValues={":s":"ERROR", ":e":str(e)}
         )
+        # Only raise string or Exception, not dict
         raise

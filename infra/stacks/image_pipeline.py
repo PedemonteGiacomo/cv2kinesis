@@ -50,7 +50,7 @@ class ImagePipeline(Stack):
         )
 
         insights_layer = _lambda.LayerVersion.from_layer_version_arn(
-            self, "InsightsLayer", "arn:aws:lambda:us-east-1:580247275435:layer:LambdaInsightsExtension:40"
+            self, "InsightsLayer", f"arn:aws:lambda:{self.region}:580247275435:layer:LambdaInsightsExtension:40"
         )
 
         lambda_dir = os.path.join(os.path.dirname(__file__), "../lambda")
@@ -187,6 +187,12 @@ class ImagePipeline(Stack):
                 "TASK_ROLE_ARN": task_role.role_arn,
             }
         )
+        # Log group per la Lambda ProvisionerFn
+        logs.LogGroup(self, f"{provisioner.node.id}Logs",
+            log_group_name=f"/aws/lambda/{provisioner.function_name}",
+            removal_policy=RemovalPolicy.DESTROY,
+            retention=logs.RetentionDays.ONE_DAY,
+        )
         # permessi provisioning
         algo_registry.grant_read_write_data(provisioner)
         provisioner.add_to_role_policy(iam.PolicyStatement(actions=[
@@ -202,10 +208,22 @@ class ImagePipeline(Stack):
         provisioner.add_to_role_policy(iam.PolicyStatement(actions=[
             "logs:CreateLogGroup","logs:PutRetentionPolicy","logs:CreateLogStream","logs:DescribeLogGroups"
         ], resources=["*"]))
+        # Permesso necessario per ECS:PassRole su entrambi i ruoli ECS (task e execution)
+        provisioner.add_to_role_policy(iam.PolicyStatement(
+            actions=["iam:PassRole"],
+            resources=[task_role.role_arn, task_exec_role.role_arn]
+        ))
 
         # collega l'ARN del provisioner nell'admin
         admin.add_environment("PROVISIONER_ARN", provisioner.function_arn)
-        admin.grant_invoke(provisioner)
+        # Permesso per invocare la Lambda di provisioning
+        admin.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["lambda:InvokeFunction"],
+                resources=[provisioner.function_arn]
+            )
+        )
+        # RIMOSSO: admin.grant_invoke(provisioner) per evitare dipendenza circolare
 
         # push lambda: aggiungi callback URL WS
         push_fn.add_environment(

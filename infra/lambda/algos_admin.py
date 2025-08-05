@@ -1,4 +1,5 @@
 import json, os, boto3, re
+from decimal import Decimal
 from botocore.exceptions import ClientError
 
 dynamodb = boto3.resource("dynamodb")
@@ -8,13 +9,17 @@ ADMIN_KEY = os.environ.get("ADMIN_KEY", "")
 PROVISIONER_ARN = os.environ["PROVISIONER_ARN"]
 
 def _resp(code, body):
+    def decimal_default(obj):
+        if isinstance(obj, Decimal):
+            return float(obj)
+        raise TypeError
     return {
         "statusCode": code,
         "headers": {
             "Access-Control-Allow-Origin": "*",
             "Access-Control-Allow-Headers": "Content-Type,x-admin-key",
         },
-        "body": json.dumps(body),
+        "body": json.dumps(body, default=decimal_default),
     }
 
 def _require_admin(event):

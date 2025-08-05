@@ -5,11 +5,15 @@ from aws_cdk import (
     aws_s3 as s3,
     Fn,
 )
+
 from stacks.pacs_api_stack import PacsApiStack
 from stacks.image_pipeline import ImagePipeline
 from constructs import Construct
+import os
 
 app = App()
+region = os.environ.get("AWS_REGION", "us-east-1")
+env = {"region": region}
 
 # ───────────────────────── Imports stack ────────────────────────────
 class Imports(Stack):
@@ -20,21 +24,22 @@ class Imports(Stack):
         self.pacs_bucket = s3.Bucket.from_bucket_name(
             self,
             "PacsBucket",
-            "pacs-dicom-dev-544547773663-us-east-1",
+            f"pacs-dicom-dev-544547773663-{region}",
         )
 
-imports = Imports(app, "Imports")            # 👈 1° stack
+imports = Imports(app, "Imports", env=env)            # 👈 1° stack
 
 # ──────────────────────── PACS‑API micro‑service ────────────────────
 pacs_api = PacsApiStack(                      # 👈 2° stack
     app,
     "PacsApi",
     bucket=imports.pacs_bucket,
+    env=env
 )
 
 # ───────────────────── Image‑processing pipeline ────────────────────
 pacs_api_url = Fn.import_value("PacsApiLoadBalancerDNS")
-img_pipe = ImagePipeline(app, "ImgPipeline", pacs_api_url=pacs_api_url)  # 👈 3° stack
+img_pipe = ImagePipeline(app, "ImgPipeline", pacs_api_url=pacs_api_url, env=env)  # 👈 3° stack
 
 # Inietta la base‑URL dell’API in tutti i container worker
 from aws_cdk.aws_ecs import ContainerDefinition
