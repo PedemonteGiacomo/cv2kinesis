@@ -17,16 +17,11 @@ function Get-OutputValue {
   else { return "" }
 }
 
-
-
-
 # Outputs da ImgPipeline
 $apiBase = Get-OutputValue $imgOutputs "ProcessingApiEndpoint"
 $outBucket = Get-OutputValue $imgOutputs "OutputBucketName"
 $resultsQueue = Get-OutputValue $imgOutputs "ResultsQueueUrl"
 $wsEndpoint = Get-OutputValue $imgOutputs "WebSocketEndpoint"
-$req1 = Get-OutputValue $imgOutputs "ImageRequestsQueueUrlprocessing1"
-$req6 = Get-OutputValue $imgOutputs "ImageRequestsQueueUrlprocessing6"
 
 # Recupero dinamico dell'output PacsApiSvcServiceURL*
 $pacsDns = ($pacsOutputs | Where-Object { $_.OutputKey -like "PacsApiSvcServiceURL*" })[0].OutputValue
@@ -41,9 +36,6 @@ $envFile = Join-Path -Path $PSScriptRoot -ChildPath "env.ps1"
 `$Env:RESULTS_QUEUE      = '$resultsQueue'
 `$Env:WS_ENDPOINT        = '$wsEndpoint'
 `$Env:PACS_API_BASE      = 'http://$pacsDns'
-
-`$Env:REQ1_QUEUE         = '$req1'
-`$Env:REQ6_QUEUE         = '$req6'
 "@ | Out-File -FilePath $envFile -Encoding UTF8 -Force
 
 Write-Host "✅ Ho generato env.ps1 in $envFile"

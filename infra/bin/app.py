@@ -24,7 +24,7 @@ class Imports(Stack):
         self.pacs_bucket = s3.Bucket.from_bucket_name(
             self,
             "PacsBucket",
-            f"pacs-dicom-dev-544547773663-{region}",
+            f"pacs-dicom-dev-544547773663-us-east-1",
         )
 
 imports = Imports(app, "Imports", env=env)            # 👈 1° stack
