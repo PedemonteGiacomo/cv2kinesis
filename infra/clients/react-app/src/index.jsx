@@ -58,7 +58,27 @@ function App() {
   const [seriesId,  setSeriesId]  = useState('300/AiCE_BODY-SHARP_300_172938.900');
   const [imageId,   setImageId]   = useState('IM-0135-0095.dcm');
   const [scope,     setScope]     = useState('image');
-  const [algorithm, setAlgorithm] = useState('processing_1');
+  const [algorithm, setAlgorithm] = useState('');
+  const [algorithms, setAlgorithms] = useState([]);
+  // Fetch algorithms on mount
+  React.useEffect(() => {
+    async function fetchAlgorithms() {
+      try {
+        const res = await fetch(`${API_BASE}/admin/algorithms`, {
+          headers: {
+            'x-admin-key': process.env.REACT_APP_ADMIN_KEY || ''
+          }
+        });
+        const data = await res.json();
+        const activeAlgos = (data.items || []).filter(a => a.status === 'ACTIVE');
+        setAlgorithms(activeAlgos);
+        if (activeAlgos.length > 0) setAlgorithm(activeAlgos[0].algorithm_id);
+      } catch (e) {
+        setAlgorithms([]);
+      }
+    }
+    fetchAlgorithms();
+  }, []);
   const [ws, setWs] = useState(null);
   const [originalUrl, setOriginalUrl] = useState(null);
 
@@ -223,8 +243,12 @@ function App() {
                   <TextField label="Scope" value={scope} onChange={e=>setScope(e.target.value)} fullWidth margin="dense" size="small" sx={{mb:2}}/>
                   <Typography variant="subtitle2" color="primary" fontWeight={500} sx={{mt:2}}>Algorithm:</Typography>
                   <Select value={algorithm} onChange={e=>setAlgorithm(e.target.value)} fullWidth size="small" sx={{ mb: 2 }}>
-                  <MenuItem value="processing_1">Processing 1</MenuItem>
-                  <MenuItem value="processing_6">Processing 6</MenuItem>
+                    {algorithms.length === 0 && <MenuItem value="" disabled>No ACTIVE algorithms</MenuItem>}
+                    {algorithms.map(algo => (
+                      <MenuItem key={algo.algorithm_id} value={algo.algorithm_id}>
+                        {algo.algorithm_id}
+                      </MenuItem>
+                    ))}
                   </Select>
                   <Button variant="contained" color="secondary" fullWidth onClick={startJob} sx={{ mb: 2, color: '#fff', fontWeight: 700, fontSize:18, py:1.5 }} disabled={status==='waiting' || !clientId}>Start processing</Button>
                   {!clientId && (
