@@ -4,7 +4,7 @@ import boto3, os, re, datetime as dt
 from urllib.parse import quote_plus
 
 BUCKET = os.environ["PACS_BUCKET"]
-s3 = boto3.client("s3")
+s3 = boto3.client("s3", region_name='us-east-1')
 
 app = FastAPI(title="PACS-API", version="0.1")
 

@@ -129,7 +129,9 @@ class ImagePipeline(Stack):
         api = apigw.RestApi(self, "ProcessingApi",
             rest_api_name="ImageProcessing API",
             default_cors_preflight_options=apigw.CorsOptions(
-                allow_origins=apigw.Cors.ALL_ORIGINS, allow_methods=apigw.Cors.ALL_METHODS
+                allow_origins=apigw.Cors.ALL_ORIGINS,
+                allow_methods=apigw.Cors.ALL_METHODS,
+                allow_headers=["Content-Type", "x-admin-key"]
             )
         )
 
@@ -141,6 +143,11 @@ class ImagePipeline(Stack):
             environment={"ALGO_TABLE": algo_registry.table_name}
         )
         algo_registry.grant_read_data(router)
+        # Permesso per inviare messaggi a tutte le code Requests-*.fifo
+        router.add_to_role_policy(iam.PolicyStatement(
+            actions=["sqs:SendMessage"],
+            resources=[f"arn:aws:sqs:{self.region}:{self.account}:Requests-*.fifo"]
+        ))
 
         proc = api.root.add_resource("process")
         algo = proc.add_resource("{algo_id}")

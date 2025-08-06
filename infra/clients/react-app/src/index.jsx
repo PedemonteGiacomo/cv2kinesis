@@ -21,7 +21,7 @@ const esaoteTheme = createTheme({
 });
 
 const API_BASE  = (process.env.REACT_APP_API_BASE || '<default>').replace(/\/$/, '');
-const PACS_BASE = process.env.REACT_APP_PACS_BASE   || '<default>';
+const PACS_BASE = process.env.REACT_APP_PACS_API_BASE   || '<default>';
 const WS_ENDPOINT = process.env.REACT_APP_WS_ENDPOINT || '<ws-endpoint>';
 
 
