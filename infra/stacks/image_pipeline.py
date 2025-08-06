@@ -131,7 +131,7 @@ class ImagePipeline(Stack):
             default_cors_preflight_options=apigw.CorsOptions(
                 allow_origins=apigw.Cors.ALL_ORIGINS,
                 allow_methods=apigw.Cors.ALL_METHODS,
-                allow_headers=["Content-Type", "x-admin-key"]
+                allow_headers=["Content-Type", "Authorization", "x-admin-key"]
             )
         )
 
@@ -153,18 +153,27 @@ class ImagePipeline(Stack):
         algo = proc.add_resource("{algo_id}")
         algo.add_method("POST", apigw.LambdaIntegration(router))
 
-        # admin (x-admin-key)
+        # admin (cognito jwt auth)
         admin = PythonFunction(
             self, "AdminAlgosFn",
             entry=lambda_dir, runtime=_lambda.Runtime.PYTHON_3_11,
             index="algos_admin.py", handler="handler",
             environment={
                 "ALGO_TABLE": algo_registry.table_name,
-                "ADMIN_KEY": os.environ.get("ADMIN_KEY","dev-admin"),
+                "USER_POOL_ID_PARAM": "/mip/admin/user-pool-id",  # SSM Parameter path
+                "USER_POOL_REGION": self.region,
                 "PROVISIONER_ARN": "dummy"  # placeholder, lo settiamo sotto
             }
         )
         algo_registry.grant_read_write_data(admin)
+        
+        # Grant permission to read SSM parameter
+        admin.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["ssm:GetParameter"],
+                resources=[f"arn:aws:ssm:{self.region}:{self.account}:parameter/mip/admin/user-pool-id"]
+            )
+        )
 
         admin_root = api.root.add_resource("admin").add_resource("algorithms")
         admin_root.add_method("GET",  apigw.LambdaIntegration(admin))
@@ -247,3 +256,16 @@ class ImagePipeline(Stack):
         CfnOutput(self, "TaskRoleArn", value=task_role.role_arn)
         CfnOutput(self, "TaskExecutionRoleArn", value=task_exec_role.role_arn)
         CfnOutput(self, "AlgoTableName", value=algo_registry.table_name)
+        
+        # Export API Gateway URL for use in AdminStack
+        CfnOutput(
+            self, "ApiGatewayUrl",
+            value=api.url,
+            export_name="ImgPipelineApiGatewayUrl"
+        )
+        
+        # Store references for other stacks
+        self.vpc = vpc
+        self.ecs_cluster = cluster
+        self.admin_function = admin
+        self.api_gateway = api

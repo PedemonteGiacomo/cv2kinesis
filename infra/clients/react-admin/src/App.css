@@ -1,0 +1,97 @@
+.App {
+  text-align: center;
+}
+
+.App-header {
+  background-color: #282c34;
+  padding: 20px;
+  color: white;
+}
+
+/* Custom styles for Amplify UI components */
+.amplify-authenticator {
+  --amplify-primary-color: #1976d2;
+  --amplify-primary-tint: #42a5f5;
+  --amplify-primary-shade: #1565c0;
+}
+
+/* Material-UI integration */
+.MuiContainer-root {
+  padding-top: 2rem;
+  padding-bottom: 2rem;
+}
+
+/* Algorithm cards */
+.algorithm-card {
+  margin-bottom: 1rem;
+  transition: all 0.3s ease;
+}
+
+.algorithm-card:hover {
+  box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+  transform: translateY(-2px);
+}
+
+/* Form styling */
+.algorithm-form {
+  margin-top: 2rem;
+}
+
+.form-section {
+  margin-bottom: 2rem;
+  padding: 1rem;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+}
+
+.form-section-title {
+  font-weight: 600;
+  margin-bottom: 1rem;
+  color: #1976d2;
+}
+
+/* Status indicators */
+.status-chip {
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+.status-active {
+  background-color: #4caf50;
+  color: white;
+}
+
+.status-inactive {
+  background-color: #f44336;
+  color: white;
+}
+
+.status-pending {
+  background-color: #ff9800;
+  color: white;
+}
+
+/* Loading states */
+.loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(255, 255, 255, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .algorithm-form {
+    padding: 1rem;
+  }
+  
+  .form-section {
+    padding: 0.5rem;
+  }
+}

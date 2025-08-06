@@ -1,7 +1,8 @@
 param(
   # nomi degli stack CDK
   [string] $ImgStack = "ImgPipeline",
-  [string] $PacsStack = "PacsApi"
+  [string] $PacsStack = "PacsApi",
+  [string] $AdminStack = "AdminStack"
 )
 
 Write-Host "🔄 Recupero Outputs dallo stack $ImgStack..."
@@ -9,6 +10,9 @@ $imgOutputs = (aws cloudformation describe-stacks --stack-name $ImgStack | Conve
 
 Write-Host "🔄 Recupero Outputs dallo stack $PacsStack..."
 $pacsOutputs = (aws cloudformation describe-stacks --stack-name $PacsStack | ConvertFrom-Json).Stacks[0].Outputs
+
+Write-Host "🔄 Recupero Outputs dallo stack $AdminStack..."
+$adminOutputs = (aws cloudformation describe-stacks --stack-name $AdminStack | ConvertFrom-Json).Stacks[0].Outputs
 
 function Get-OutputValue {
   param($Outputs, $Key)
@@ -26,6 +30,12 @@ $wsEndpoint = Get-OutputValue $imgOutputs "WebSocketEndpoint"
 # Recupero dinamico dell'output PacsApiSvcServiceURL*
 $pacsDns = ($pacsOutputs | Where-Object { $_.OutputKey -like "PacsApiSvcServiceURL*" })[0].OutputValue
 
+# Outputs da AdminStack
+$userPoolId = Get-OutputValue $adminOutputs "UserPoolId"
+$userPoolClientId = Get-OutputValue $adminOutputs "UserPoolClientId"
+$cloudFrontUrl = Get-OutputValue $adminOutputs "CloudFrontURL"
+$adminLoadBalancerDns = Get-OutputValue $adminOutputs "LoadBalancerDNS"
+
 
 # Scrivo env.ps1
 $envFile = Join-Path -Path $PSScriptRoot -ChildPath "env.ps1"
@@ -35,7 +45,12 @@ $envFile = Join-Path -Path $PSScriptRoot -ChildPath "env.ps1"
 `$Env:OUTPUT_BUCKET      = '$outBucket'
 `$Env:RESULTS_QUEUE      = '$resultsQueue'
 `$Env:WS_ENDPOINT        = '$wsEndpoint'
-`$Env:PACS_API_BASE      = 'http://$pacsDns'
+`$Env:PACS_API_BASE      = '$pacsDns'
+`$Env:USER_POOL_ID       = '$userPoolId'
+`$Env:USER_POOL_CLIENT_ID = '$userPoolClientId'
+`$Env:CLOUDFRONT_URL     = '$cloudFrontUrl'
+`$Env:ADMIN_LB_DNS       = '$adminLoadBalancerDns'
+`$Env:AWS_REGION         = 'eu-central-1'
 "@ | Out-File -FilePath $envFile -Encoding UTF8 -Force
 
 Write-Host "✅ Ho generato env.ps1 in $envFile"

@@ -8,6 +8,7 @@ from aws_cdk import (
 
 from stacks.pacs_api_stack import PacsApiStack
 from stacks.image_pipeline import ImagePipeline
+from stacks.admin_stack import AdminStack
 from constructs import Construct
 import os
 
@@ -40,6 +41,24 @@ pacs_api = PacsApiStack(                      # 👈 2° stack
 # ───────────────────── Image‑processing pipeline ────────────────────
 pacs_api_url = Fn.import_value("PacsApiLoadBalancerDNS")
 img_pipe = ImagePipeline(app, "ImgPipeline", pacs_api_url=pacs_api_url, env=env)  # 👈 3° stack
+
+# ─────────────────────── Admin Portal ────────────────────────────────
+# Optional: Custom domain configuration
+domain_name = os.environ.get("ADMIN_DOMAIN_NAME")  # e.g., "admin.yourdomain.com"
+certificate_arn = os.environ.get("ADMIN_CERTIFICATE_ARN")  # ACM certificate ARN
+
+admin_stack = AdminStack(                         # 👈 4° stack
+    app,
+    "AdminStack",
+    vpc=img_pipe.vpc,
+    api_gateway_url=Fn.import_value("ImgPipelineApiGatewayUrl"),
+    domain_name=domain_name,
+    certificate_arn=certificate_arn,
+    env=env,
+)
+
+# Add dependency to ensure proper deployment order
+admin_stack.add_dependency(img_pipe)
 
 # Inietta la base‑URL dell’API in tutti i container worker
 from aws_cdk.aws_ecs import ContainerDefinition
