@@ -12,15 +12,12 @@ import {
   CircularProgress,
   TextField,
   InputAdornment,
-  IconButton,
   Tooltip
 } from '@mui/material';
 import {
   Search as SearchIcon,
   Refresh as RefreshIcon,
-  Info as InfoIcon
 } from '@mui/icons-material';
-import { Auth } from 'aws-amplify';
 
 import apiService from '../services/apiService';
 
@@ -30,34 +27,18 @@ const AlgorithmViewer = () => {
   const [error, setError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [userGroups, setUserGroups] = useState([]);
 
   useEffect(() => {
     loadAlgorithms();
-    loadUserInfo();
   }, []);
-
-  const loadUserInfo = async () => {
-    try {
-      const session = await Auth.currentSession();
-      const token = session.getAccessToken();
-      const groups = token.payload['cognito:groups'] || [];
-      setUserGroups(groups);
-    } catch (err) {
-      console.error('Error loading user info:', err);
-    }
-  };
 
   const loadAlgorithms = async () => {
     try {
       setLoading(true);
       setError(null);
       
-      // Get the current authenticated user's JWT token
-      const session = await Auth.currentSession();
-      const token = session.getAccessToken().getJwtToken();
-      
-      const response = await apiService.getAlgorithms(token);
+      // Call public API endpoint (no authentication required)
+      const response = await apiService.getAlgorithms();
       setAlgorithms(response.items || []);
     } catch (err) {
       console.error('Error loading algorithms:', err);
@@ -138,16 +119,14 @@ const AlgorithmViewer = () => {
         </Alert>
       )}
 
-      {/* User Info */}
-      <Paper sx={{ p: 2, mb: 3, bgcolor: 'info.light', color: 'info.contrastText' }}>
+      {/* Public Access Notice */}
+      <Paper sx={{ p: 2, mb: 3, bgcolor: 'success.light', color: 'success.contrastText' }}>
         <Typography variant="h6" gutterBottom>
-          Informazioni Account
+          Catalogo Algoritmi Pubblico
         </Typography>
         <Typography variant="body2">
-          Gruppi utente: {userGroups.length > 0 ? userGroups.join(', ') : 'Nessun gruppo assegnato'}
-        </Typography>
-        <Typography variant="body2">
-          Permessi: Solo lettura algoritmi disponibili
+          Questa è la visualizzazione pubblica degli algoritmi disponibili. 
+          Non è richiesta autenticazione per consultare questo catalogo.
         </Typography>
       </Paper>
 
@@ -232,28 +211,33 @@ const AlgorithmViewer = () => {
                       <Typography variant="caption" display="block" color="text.secondary">
                         <strong>Istanze:</strong> {algorithm.desired_count || 'N/A'}
                       </Typography>
-                      {algorithm.image_uri && (
-                        <Typography variant="caption" display="block" color="text.secondary" noWrap>
-                          <strong>Immagine:</strong> {algorithm.image_uri.split('/').pop()}
+                      {algorithm.version && (
+                        <Typography variant="caption" display="block" color="text.secondary">
+                          <strong>Versione:</strong> {algorithm.version}
+                        </Typography>
+                      )}
+                      {algorithm.category && (
+                        <Typography variant="caption" display="block" color="text.secondary">
+                          <strong>Categoria:</strong> {algorithm.category}
                         </Typography>
                       )}
                     </Box>
                     
-                    {algorithm.env && Object.keys(algorithm.env).length > 0 && (
+                    {algorithm.tags && algorithm.tags.length > 0 && (
                       <Box sx={{ mt: 2 }}>
-                        <Typography variant="caption" display="block" color="text.secondary">
-                          <strong>Variabili ambiente:</strong>
+                        <Typography variant="caption" display="block" color="text.secondary" sx={{ mb: 1 }}>
+                          <strong>Tags:</strong>
                         </Typography>
-                        {Object.entries(algorithm.env).slice(0, 3).map(([key, value]) => (
-                          <Typography key={key} variant="caption" display="block" color="text.secondary" sx={{ ml: 1 }}>
-                            {key}: {String(value).substring(0, 20)}{String(value).length > 20 ? '...' : ''}
-                          </Typography>
-                        ))}
-                        {Object.keys(algorithm.env).length > 3 && (
-                          <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
-                            ... e altri {Object.keys(algorithm.env).length - 3}
-                          </Typography>
-                        )}
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                          {algorithm.tags.slice(0, 3).map((tag, index) => (
+                            <Chip key={index} label={tag} size="small" variant="outlined" />
+                          ))}
+                          {algorithm.tags.length > 3 && (
+                            <Typography variant="caption" color="text.secondary">
+                              +{algorithm.tags.length - 3} altri
+                            </Typography>
+                          )}
+                        </Box>
                       </Box>
                     )}
                   </CardContent>

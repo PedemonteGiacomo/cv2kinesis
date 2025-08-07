@@ -223,6 +223,23 @@ class ImagePipeline(Stack):
         admin_item.add_method("PATCH",  apigw.LambdaIntegration(admin))
         admin_item.add_method("DELETE", apigw.LambdaIntegration(admin))
 
+        # -------------------- Public Algorithms API (No Auth Required) --------------------
+        public_algorithms = PythonFunction(
+            self, "PublicAlgorithmsFn",
+            entry=lambda_dir, runtime=_lambda.Runtime.PYTHON_3_11,
+            index="public_algorithms.py", handler="handler",
+            environment={
+                "ALGO_TABLE": algo_registry.table_name,
+            }
+        )
+        algo_registry.grant_read_data(public_algorithms)
+        
+        # Public endpoints: /algorithms (read-only, no auth)
+        public_root = api.root.add_resource("algorithms")
+        public_root.add_method("GET",  apigw.LambdaIntegration(public_algorithms))
+        public_item = public_root.add_resource("{algo_id}")
+        public_item.add_method("GET", apigw.LambdaIntegration(public_algorithms))
+
         # -------------------- Provisioner Lambda --------------------
         provisioner = PythonFunction(
             self, "ProvisionerFn",

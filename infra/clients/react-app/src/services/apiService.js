@@ -55,19 +55,17 @@ class ApiService {
     }
   }
 
-  // Get all algorithms (read-only)
-  async getAlgorithms(token) {
-    return await this.makeRequest('/admin/algorithms', {
+  // Get all algorithms (public endpoint - no auth required)
+  async getAlgorithms() {
+    return await this.makeRequest('/algorithms', {
       method: 'GET',
-      token,
     });
   }
 
-  // Get single algorithm by ID (read-only)
-  async getAlgorithm(id, token) {
-    return await this.makeRequest(`/admin/algorithms/${id}`, {
+  // Get single algorithm by ID (public endpoint - no auth required)
+  async getAlgorithm(id) {
+    return await this.makeRequest(`/algorithms/${id}`, {
       method: 'GET',
-      token,
     });
   }
 
