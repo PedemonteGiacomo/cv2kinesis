@@ -217,7 +217,7 @@ def handler(event, _):
                 env_dict=env,
             )
 
-            # 3) service
+            # 3) create or update service (cluster is always active now)
             op = _create_or_update_service(algo_id, tdef, item.get("desired_count",1))
 
             # 4) persist

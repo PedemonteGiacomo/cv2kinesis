@@ -27,6 +27,57 @@ class ImagePipeline(Stack):
         cluster = ecs.Cluster(self, "ImgCluster", vpc=vpc)
         svc_sg = ec2.SecurityGroup(self, "SvcSG", vpc=vpc, allow_all_outbound=True)
 
+        # -------------------- ECS Roles riutilizzabili --------------------
+        task_exec_role = iam.Role(
+            self, "MipTaskExecutionRole",
+            assumed_by=iam.ServicePrincipal("ecs-tasks.amazonaws.com"),
+            managed_policies=[iam.ManagedPolicy.from_aws_managed_policy_name("service-role/AmazonECSTaskExecutionRolePolicy")]
+        )
+        task_role = iam.Role(
+            self, "MipTaskRole",
+            assumed_by=iam.ServicePrincipal("ecs-tasks.amazonaws.com"),
+        )
+
+        # -------------------- Keep-Alive Service for Cluster --------------------
+        # Create a minimal service to keep the cluster active
+        logs.LogGroup(self, "ClusterKeeperLogs",
+            log_group_name="/ecs/cluster-keeper",
+            removal_policy=RemovalPolicy.DESTROY,
+            retention=logs.RetentionDays.ONE_DAY,
+        )
+        
+        keeper_task_def = ecs.FargateTaskDefinition(
+            self, "ClusterKeeperTaskDef",
+            cpu=256,
+            memory_limit_mib=512,
+            execution_role=task_exec_role,
+            task_role=task_role
+        )
+        
+        keeper_task_def.add_container(
+            "keeper",
+            image=ecs.ContainerImage.from_registry("alpine:latest"),
+            essential=True,
+            command=["sh", "-c", "while true; do echo 'keeping cluster active'; sleep 300; done"],
+            logging=ecs.LogDrivers.aws_logs(
+                stream_prefix="keeper",
+                log_group=logs.LogGroup.from_log_group_name(self, "KeeperLogGroup", "/ecs/cluster-keeper")
+            )
+        )
+        
+        keeper_service = ecs.FargateService(
+            self, "ClusterKeeperService",
+            cluster=cluster,
+            task_definition=keeper_task_def,
+            desired_count=1,
+            service_name="cluster-keeper",
+            vpc_subnets=ec2.SubnetSelection(
+                subnet_type=ec2.SubnetType.PUBLIC
+            ),
+            security_groups=[svc_sg],
+            assign_public_ip=True
+        )
+
         # -------------------- Output & Results --------------------
         out_bucket = s3.Bucket(self, "Output", removal_policy=RemovalPolicy.RETAIN)
 
@@ -110,17 +161,6 @@ class ImagePipeline(Stack):
             partition_key=ddb.Attribute(name="algorithm_id", type=ddb.AttributeType.STRING),
             billing_mode=ddb.BillingMode.PAY_PER_REQUEST,
             removal_policy=RemovalPolicy.DESTROY
-        )
-
-        # -------------------- ECS Roles riutilizzabili --------------------
-        task_exec_role = iam.Role(
-            self, "MipTaskExecutionRole",
-            assumed_by=iam.ServicePrincipal("ecs-tasks.amazonaws.com"),
-            managed_policies=[iam.ManagedPolicy.from_aws_managed_policy_name("service-role/AmazonECSTaskExecutionRolePolicy")]
-        )
-        task_role = iam.Role(
-            self, "MipTaskRole",
-            assumed_by=iam.ServicePrincipal("ecs-tasks.amazonaws.com"),
         )
         out_bucket.grant_read_write(task_role)
         results_q.grant_send_messages(task_role)
@@ -216,7 +256,8 @@ class ImagePipeline(Stack):
         ], resources=["*"]))
         provisioner.add_to_role_policy(iam.PolicyStatement(actions=[
             "ecs:RegisterTaskDefinition","ecs:DescribeTaskDefinition",
-            "ecs:CreateService","ecs:UpdateService","ecs:DescribeServices","ecs:DeleteService"
+            "ecs:CreateService","ecs:UpdateService","ecs:DescribeServices","ecs:DeleteService",
+            "ecs:DescribeClusters","ecs:RunTask"
         ], resources=["*"]))
         provisioner.add_to_role_policy(iam.PolicyStatement(actions=[
             "iam:PutRolePolicy","iam:GetRolePolicy"
