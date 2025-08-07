@@ -249,7 +249,24 @@ def handler(event, _):
             spec = _validate_spec(body)
             _validate_algo_id(spec["algo_id"])
 
-            # upsert registro
+            # Check if algorithm already exists
+            existing_item = table.get_item(Key={"algorithm_id": spec["algo_id"]}).get("Item")
+            if existing_item:
+                return _resp(409, {
+                    "error": "Algoritmo già esistente",
+                    "message": f"Un algoritmo con ID '{spec['algo_id']}' è già registrato nel sistema.",
+                    "existing_algorithm": {
+                        "algorithm_id": existing_item["algorithm_id"],
+                        "status": existing_item.get("status", "UNKNOWN"),
+                        "image_uri": existing_item.get("image_uri", ""),
+                        "cpu": existing_item.get("cpu", 0),
+                        "memory": existing_item.get("memory", 0),
+                        "desired_count": existing_item.get("desired_count", 0)
+                    },
+                    "suggestion": "Usa una PATCH request per aggiornare l'algoritmo esistente o scegli un ID diverso."
+                })
+
+            # Create new algorithm
             table.put_item(
                 Item={
                     "algorithm_id": spec["algo_id"],
@@ -261,8 +278,7 @@ def handler(event, _):
                     "command": spec.get("command", ["/app/worker.sh"]),
                     "env": spec.get("env", {}),
                     "resource_status": {},
-                },
-                ConditionExpression="attribute_not_exists(algorithm_id)",
+                }
             )
             _invoke_provisioner("provision", spec["algo_id"])
             return _resp(202, {"message": "registered, provisioning started"})

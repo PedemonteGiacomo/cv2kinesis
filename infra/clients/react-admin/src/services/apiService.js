@@ -57,14 +57,31 @@ class ApiService {
       
       if (!response.ok) {
         let errorMessage = `HTTP ${response.status}`;
+        let errorData = null;
+        
         try {
-          const errorData = await response.json();
+          errorData = await response.json();
           errorMessage = errorData.message || errorData.error || errorMessage;
+          
+          // For 409 Conflict (algorithm already exists), provide detailed error
+          if (response.status === 409 && errorData.existing_algorithm) {
+            const existing = errorData.existing_algorithm;
+            errorMessage = `${errorData.message}\n\nAlgoritmo esistente:\n` +
+              `• ID: ${existing.algorithm_id}\n` +
+              `• Status: ${existing.status}\n` +
+              `• CPU: ${existing.cpu}, Memoria: ${existing.memory}MB\n` +
+              `• Immagine: ${existing.image_uri}\n\n` +
+              `${errorData.suggestion}`;
+          }
         } catch (e) {
           // If response is not JSON, use status text
           errorMessage = response.statusText || errorMessage;
         }
-        throw new Error(errorMessage);
+        
+        const error = new Error(errorMessage);
+        error.status = response.status;
+        error.data = errorData;
+        throw error;
       }
 
       // Handle empty responses
@@ -91,8 +108,8 @@ class ApiService {
   }
 
   // Get single algorithm by ID
-  async getAlgorithm(id, token = null) {
-    return await this.makeRequest(`/algorithms/${id}`, {
+  async getAlgorithm(algo_id, token = null) {
+    return await this.makeRequest(`/algorithms/${algo_id}`, {
       method: 'GET',
       token,
     });
@@ -108,8 +125,8 @@ class ApiService {
   }
 
   // Update existing algorithm
-  async updateAlgorithm(id, algorithmData, token = null) {
-    return await this.makeRequest(`/algorithms/${id}`, {
+  async updateAlgorithm(algo_id, algorithmData, token = null) {
+    return await this.makeRequest(`/algorithms/${algo_id}`, {
       method: 'PATCH',
       token,
       body: JSON.stringify(algorithmData),
@@ -117,60 +134,14 @@ class ApiService {
   }
 
   // Delete algorithm
-  async deleteAlgorithm(id, token = null) {
-    return await this.makeRequest(`/algorithms/${id}`, {
+  async deleteAlgorithm(algo_id, hard = false, token = null) {
+    const queryParam = hard ? '?hard=true' : '';
+    return await this.makeRequest(`/algorithms/${algo_id}${queryParam}`, {
       method: 'DELETE',
       token,
     });
   }
 
-  // Get algorithm status
-  async getAlgorithmStatus(id, token = null) {
-    return await this.makeRequest(`/algorithms/${id}/status`, {
-      method: 'GET',
-      token,
-    });
-  }
-
-  // Start/stop algorithm
-  async toggleAlgorithm(id, action, token = null) {
-    return await this.makeRequest(`/algorithms/${id}/${action}`, {
-      method: 'POST',
-      token,
-    });
-  }
-
-  // Get algorithm logs
-  async getAlgorithmLogs(id, token = null, limit = 100) {
-    return await this.makeRequest(`/algorithms/${id}/logs?limit=${limit}`, {
-      method: 'GET',
-      token,
-    });
-  }
-
-  // Health check
-  async healthCheck() {
-    return await this.makeRequest('/health', {
-      method: 'GET',
-    });
-  }
-
-  // Get algorithm metrics
-  async getAlgorithmMetrics(id, token = null, timeRange = '1h') {
-    return await this.makeRequest(`/algorithms/${id}/metrics?range=${timeRange}`, {
-      method: 'GET',
-      token,
-    });
-  }
-
-  // Test algorithm endpoint
-  async testAlgorithm(id, testData, token = null) {
-    return await this.makeRequest(`/algorithms/${id}/test`, {
-      method: 'POST',
-      token,
-      body: JSON.stringify(testData),
-    });
-  }
 }
 
 // Create a singleton instance

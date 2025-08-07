@@ -27,39 +27,46 @@ import {
 
 const AlgorithmForm = ({ algorithm, onSave, onCancel }) => {
   const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-    version: '1.0.0',
-    image: '',
-    cpu: '512',
-    memory: '1024',
-    enabled: true,
-    environment: [],
-    ports: [],
-    volumes: [],
-    commands: [],
+    algo_id: '',
+    image_uri: '',
+    cpu: 1024,
+    memory: 2048,
+    desired_count: 1,
+    command: ['/app/worker.sh'],
+    env: {},
     ...algorithm
   });
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [validationErrors, setValidationErrors] = useState({});
+  const [envVars, setEnvVars] = useState([]);
 
   useEffect(() => {
     if (algorithm) {
+      // Convert env object to array for editing
+      const envArray = Object.entries(algorithm.env || {}).map(([key, value]) => ({ key, value }));
+      setEnvVars(envArray);
+      
       setFormData({
-        name: '',
-        description: '',
-        version: '1.0.0',
-        image: '',
-        cpu: '512',
-        memory: '1024',
-        enabled: true,
-        environment: [],
-        ports: [],
-        volumes: [],
-        commands: [],
-        ...algorithm
+        algo_id: algorithm.algorithm_id || '', // Map from backend field
+        image_uri: algorithm.image_uri || '',
+        cpu: algorithm.cpu || 1024,
+        memory: algorithm.memory || 2048,
+        desired_count: algorithm.desired_count || 1,
+        command: algorithm.command || ['/app/worker.sh'],
+        env: algorithm.env || {}
+      });
+    } else {
+      setEnvVars([]);
+      setFormData({
+        algo_id: '',
+        image_uri: '',
+        cpu: 1024,
+        memory: 2048,
+        desired_count: 1,
+        command: ['/app/worker.sh'],
+        env: {}
       });
     }
   }, [algorithm]);
@@ -67,16 +74,14 @@ const AlgorithmForm = ({ algorithm, onSave, onCancel }) => {
   const validateForm = () => {
     const errors = {};
     
-    if (!formData.name?.trim()) {
-      errors.name = 'Il nome è obbligatorio';
+    if (!formData.algo_id?.trim()) {
+      errors.algo_id = 'L\'ID algoritmo è obbligatorio';
+    } else if (!/^[a-z0-9_][a-z0-9_\-]{2,63}$/.test(formData.algo_id)) {
+      errors.algo_id = 'ID algoritmo non valido: usare [a-z0-9_-], 3-64 caratteri';
     }
     
-    if (!formData.image?.trim()) {
-      errors.image = 'L\'immagine Docker è obbligatoria';
-    }
-    
-    if (!formData.version?.trim()) {
-      errors.version = 'La versione è obbligatoria';
+    if (!formData.image_uri?.trim()) {
+      errors.image_uri = 'L\'URI dell\'immagine è obbligatorio';
     }
     
     if (!formData.cpu || isNaN(formData.cpu) || parseInt(formData.cpu) <= 0) {
@@ -85,6 +90,10 @@ const AlgorithmForm = ({ algorithm, onSave, onCancel }) => {
     
     if (!formData.memory || isNaN(formData.memory) || parseInt(formData.memory) <= 0) {
       errors.memory = 'Memoria deve essere un numero positivo';
+    }
+
+    if (!formData.desired_count || isNaN(formData.desired_count) || parseInt(formData.desired_count) < 0) {
+      errors.desired_count = 'Il numero di istanze deve essere >= 0';
     }
 
     setValidationErrors(errors);
@@ -102,20 +111,37 @@ const AlgorithmForm = ({ algorithm, onSave, onCancel }) => {
     setError(null);
     
     try {
-      // Prepare data for API
+      // Convert envVars array back to object
+      const envObject = {};
+      envVars.forEach(envVar => {
+        if (envVar.key && envVar.value) {
+          envObject[envVar.key] = envVar.value;
+        }
+      });
+
+      // Prepare data for API - exactly what the backend expects
       const algorithmData = {
-        ...formData,
+        algo_id: formData.algo_id.trim(),
+        image_uri: formData.image_uri.trim(),
         cpu: parseInt(formData.cpu),
         memory: parseInt(formData.memory),
-        environment: formData.environment.filter(env => env.key && env.value),
-        ports: formData.ports.filter(port => port.containerPort),
-        volumes: formData.volumes.filter(vol => vol.name && vol.mountPath),
-        commands: formData.commands.filter(cmd => cmd.trim())
+        desired_count: parseInt(formData.desired_count),
+        command: Array.isArray(formData.command) ? formData.command : [formData.command || '/app/worker.sh'],
+        env: envObject
       };
       
       await onSave(algorithmData);
     } catch (err) {
-      setError(err.message);
+      console.error('Form save error:', err);
+      
+      // Handle specific error cases
+      if (err.status === 409) {
+        // Algorithm already exists - show detailed error
+        setError(err.message);
+      } else {
+        // Generic error
+        setError(err.message || 'Errore durante il salvataggio');
+      }
     } finally {
       setLoading(false);
     }
@@ -136,40 +162,10 @@ const AlgorithmForm = ({ algorithm, onSave, onCancel }) => {
     }
   };
 
-  const handleArrayAdd = (field, defaultItem) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: [...prev[field], defaultItem]
-    }));
-  };
-
-  const handleArrayRemove = (field, index) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: prev[field].filter((_, i) => i !== index)
-    }));
-  };
-
-  const handleArrayItemChange = (field, index, key, value) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: prev[field].map((item, i) => 
-        i === index ? { ...item, [key]: value } : item
-      )
-    }));
-  };
-
-  const handleCommandChange = (index, value) => {
-    setFormData(prev => ({
-      ...prev,
-      commands: prev.commands.map((cmd, i) => i === index ? value : cmd)
-    }));
-  };
-
   return (
     <Box component="form" onSubmit={handleSubmit} sx={{ mt: 2 }}>
       {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
+        <Alert severity="error" sx={{ mb: 2, whiteSpace: 'pre-line' }}>
           {error}
         </Alert>
       )}
@@ -185,23 +181,26 @@ const AlgorithmForm = ({ algorithm, onSave, onCancel }) => {
         <Grid item xs={12} sm={6}>
           <TextField
             fullWidth
-            label="Nome Algoritmo"
-            value={formData.name}
-            onChange={(e) => handleInputChange('name', e.target.value)}
-            error={!!validationErrors.name}
-            helperText={validationErrors.name}
+            label="ID Algoritmo"
+            value={formData.algo_id}
+            onChange={(e) => handleInputChange('algo_id', e.target.value)}
+            error={!!validationErrors.algo_id}
+            helperText={validationErrors.algo_id || (algorithm ? 'L\'ID non può essere modificato' : 'Solo lettere minuscole, numeri, _ e -')}
             required
+            disabled={!!algorithm} // Disable editing if updating existing algorithm
           />
         </Grid>
         
         <Grid item xs={12} sm={6}>
           <TextField
             fullWidth
-            label="Versione"
-            value={formData.version}
-            onChange={(e) => handleInputChange('version', e.target.value)}
-            error={!!validationErrors.version}
-            helperText={validationErrors.version}
+            label="Istanze Desiderate"
+            type="number"
+            value={formData.desired_count}
+            onChange={(e) => handleInputChange('desired_count', e.target.value)}
+            error={!!validationErrors.desired_count}
+            helperText={validationErrors.desired_count || 'Numero di istanze da eseguire'}
+            inputProps={{ min: 0 }}
             required
           />
         </Grid>
@@ -209,22 +208,11 @@ const AlgorithmForm = ({ algorithm, onSave, onCancel }) => {
         <Grid item xs={12}>
           <TextField
             fullWidth
-            label="Descrizione"
-            multiline
-            rows={3}
-            value={formData.description}
-            onChange={(e) => handleInputChange('description', e.target.value)}
-          />
-        </Grid>
-        
-        <Grid item xs={12}>
-          <TextField
-            fullWidth
-            label="Immagine Docker"
-            value={formData.image}
-            onChange={(e) => handleInputChange('image', e.target.value)}
-            error={!!validationErrors.image}
-            helperText={validationErrors.image || 'Es: my-registry/algorithm:latest'}
+            label="URI Immagine Docker"
+            value={formData.image_uri}
+            onChange={(e) => handleInputChange('image_uri', e.target.value)}
+            error={!!validationErrors.image_uri}
+            helperText={validationErrors.image_uri || 'Es: 123456789.dkr.ecr.eu-central-1.amazonaws.com/my-algo:latest'}
             required
           />
         </Grid>
@@ -239,13 +227,13 @@ const AlgorithmForm = ({ algorithm, onSave, onCancel }) => {
         <Grid item xs={12} sm={6}>
           <TextField
             fullWidth
-            label="CPU (vCPU)"
+            label="CPU (unità)"
             type="number"
             value={formData.cpu}
             onChange={(e) => handleInputChange('cpu', e.target.value)}
             error={!!validationErrors.cpu}
-            helperText={validationErrors.cpu || 'CPU in unità vCPU (es: 512 = 0.5 vCPU)'}
-            inputProps={{ min: 1 }}
+            helperText={validationErrors.cpu || 'CPU in unità (es: 1024 = 1 vCPU)'}
+            inputProps={{ min: 256, step: 256 }}
             required
           />
         </Grid>
@@ -259,20 +247,18 @@ const AlgorithmForm = ({ algorithm, onSave, onCancel }) => {
             onChange={(e) => handleInputChange('memory', e.target.value)}
             error={!!validationErrors.memory}
             helperText={validationErrors.memory || 'Memoria in MB'}
-            inputProps={{ min: 1 }}
+            inputProps={{ min: 512, step: 512 }}
             required
           />
         </Grid>
-        
+        {/* Command Configuration */}
         <Grid item xs={12}>
-          <FormControlLabel
-            control={
-              <Switch
-                checked={formData.enabled}
-                onChange={(e) => handleInputChange('enabled', e.target.checked)}
-              />
-            }
-            label="Algoritmo abilitato"
+          <TextField
+            fullWidth
+            label="Comando di Avvio"
+            value={Array.isArray(formData.command) ? formData.command.join(' ') : formData.command}
+            onChange={(e) => handleInputChange('command', e.target.value.split(' ').filter(cmd => cmd.trim()))}
+            helperText="Comando per avviare l'algoritmo (default: /app/worker.sh)"
           />
         </Grid>
 
@@ -280,23 +266,22 @@ const AlgorithmForm = ({ algorithm, onSave, onCancel }) => {
         <Grid item xs={12}>
           <Accordion>
             <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-              <Typography variant="h6">Configurazione Avanzata</Typography>
+              <Typography variant="h6">Variabili di Ambiente</Typography>
             </AccordionSummary>
             <AccordionDetails>
               <Grid container spacing={2}>
-                {/* Environment Variables */}
                 <Grid item xs={12}>
                   <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                    <Typography variant="subtitle1">Variabili di Ambiente</Typography>
+                    <Typography variant="subtitle1">Variabili di Ambiente Personalizzate</Typography>
                     <Button
                       size="small"
                       startIcon={<AddIcon />}
-                      onClick={() => handleArrayAdd('environment', { key: '', value: '' })}
+                      onClick={() => setEnvVars([...envVars, { key: '', value: '' }])}
                     >
                       Aggiungi
                     </Button>
                   </Box>
-                  {formData.environment.map((env, index) => (
+                  {envVars.map((env, index) => (
                     <Grid container spacing={1} key={index} sx={{ mb: 1 }}>
                       <Grid item xs={5}>
                         <TextField
@@ -304,7 +289,11 @@ const AlgorithmForm = ({ algorithm, onSave, onCancel }) => {
                           size="small"
                           label="Chiave"
                           value={env.key}
-                          onChange={(e) => handleArrayItemChange('environment', index, 'key', e.target.value)}
+                          onChange={(e) => {
+                            const newEnvVars = [...envVars];
+                            newEnvVars[index] = { ...newEnvVars[index], key: e.target.value };
+                            setEnvVars(newEnvVars);
+                          }}
                         />
                       </Grid>
                       <Grid item xs={6}>
@@ -313,100 +302,18 @@ const AlgorithmForm = ({ algorithm, onSave, onCancel }) => {
                           size="small"
                           label="Valore"
                           value={env.value}
-                          onChange={(e) => handleArrayItemChange('environment', index, 'value', e.target.value)}
+                          onChange={(e) => {
+                            const newEnvVars = [...envVars];
+                            newEnvVars[index] = { ...newEnvVars[index], value: e.target.value };
+                            setEnvVars(newEnvVars);
+                          }}
                         />
                       </Grid>
                       <Grid item xs={1}>
                         <IconButton
                           size="small"
                           color="error"
-                          onClick={() => handleArrayRemove('environment', index)}
-                        >
-                          <DeleteIcon />
-                        </IconButton>
-                      </Grid>
-                    </Grid>
-                  ))}
-                </Grid>
-
-                {/* Commands */}
-                <Grid item xs={12}>
-                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                    <Typography variant="subtitle1">Comandi di Avvio</Typography>
-                    <Button
-                      size="small"
-                      startIcon={<AddIcon />}
-                      onClick={() => handleArrayAdd('commands', '')}
-                    >
-                      Aggiungi
-                    </Button>
-                  </Box>
-                  {formData.commands.map((command, index) => (
-                    <Grid container spacing={1} key={index} sx={{ mb: 1 }}>
-                      <Grid item xs={11}>
-                        <TextField
-                          fullWidth
-                          size="small"
-                          label={`Comando ${index + 1}`}
-                          value={command}
-                          onChange={(e) => handleCommandChange(index, e.target.value)}
-                        />
-                      </Grid>
-                      <Grid item xs={1}>
-                        <IconButton
-                          size="small"
-                          color="error"
-                          onClick={() => handleArrayRemove('commands', index)}
-                        >
-                          <DeleteIcon />
-                        </IconButton>
-                      </Grid>
-                    </Grid>
-                  ))}
-                </Grid>
-
-                {/* Ports */}
-                <Grid item xs={12}>
-                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                    <Typography variant="subtitle1">Porte</Typography>
-                    <Button
-                      size="small"
-                      startIcon={<AddIcon />}
-                      onClick={() => handleArrayAdd('ports', { containerPort: '', protocol: 'TCP' })}
-                    >
-                      Aggiungi
-                    </Button>
-                  </Box>
-                  {formData.ports.map((port, index) => (
-                    <Grid container spacing={1} key={index} sx={{ mb: 1 }}>
-                      <Grid item xs={5}>
-                        <TextField
-                          fullWidth
-                          size="small"
-                          type="number"
-                          label="Porta Container"
-                          value={port.containerPort}
-                          onChange={(e) => handleArrayItemChange('ports', index, 'containerPort', e.target.value)}
-                          inputProps={{ min: 1, max: 65535 }}
-                        />
-                      </Grid>
-                      <Grid item xs={6}>
-                        <FormControl fullWidth size="small">
-                          <InputLabel>Protocollo</InputLabel>
-                          <Select
-                            value={port.protocol || 'TCP'}
-                            onChange={(e) => handleArrayItemChange('ports', index, 'protocol', e.target.value)}
-                          >
-                            <MenuItem value="TCP">TCP</MenuItem>
-                            <MenuItem value="UDP">UDP</MenuItem>
-                          </Select>
-                        </FormControl>
-                      </Grid>
-                      <Grid item xs={1}>
-                        <IconButton
-                          size="small"
-                          color="error"
-                          onClick={() => handleArrayRemove('ports', index)}
+                          onClick={() => setEnvVars(envVars.filter((_, i) => i !== index))}
                         >
                           <DeleteIcon />
                         </IconButton>

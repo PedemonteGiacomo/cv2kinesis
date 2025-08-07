@@ -66,20 +66,6 @@ function App() {
     }
   }, []);
 
-  const AppContent = () => (
-    <Container maxWidth="lg">
-      <Box sx={{ my: 4 }}>
-        <Typography variant="h4" component="h1" gutterBottom>
-          Medical Image Processing - Admin Portal
-        </Typography>
-        <Typography variant="body1" color="text.secondary" paragraph>
-          Gestisci algoritmi di elaborazione delle immagini mediche
-        </Typography>
-        <AlgorithmManager />
-      </Box>
-    </Container>
-  );
-
   if (configError) {
     return (
       <ThemeProvider theme={theme}>
@@ -125,10 +111,10 @@ function App() {
         </Toolbar>
       </AppBar>
       
-      <Authenticator>
+      <Authenticator hideSignUp>
         {({ signOut, user }) => (
           <main>
-            <AppBar position="static" color="transparent" elevation={0}>
+            <AppBar position="static" color="transparent" elevation={0} sx={{ mt: 2 }}>
               <Toolbar>
                 <Typography variant="body1" sx={{ flexGrow: 1 }}>
                   Benvenuto, {user?.username}
@@ -136,7 +122,17 @@ function App() {
                 <button onClick={signOut}>Sign out</button>
               </Toolbar>
             </AppBar>
-            <AppContent />
+            <Container maxWidth="lg">
+              <Box sx={{ my: 4, mt: 6 }}>
+                <Typography variant="h4" component="h1" gutterBottom>
+                  Medical Image Processing - Admin Portal
+                </Typography>
+                <Typography variant="body1" color="text.secondary" paragraph>
+                  Gestisci algoritmi di elaborazione delle immagini mediche
+                </Typography>
+                <AlgorithmManager />
+              </Box>
+            </Container>
           </main>
         )}
       </Authenticator>

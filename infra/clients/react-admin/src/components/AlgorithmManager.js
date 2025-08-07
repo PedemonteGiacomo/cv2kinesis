@@ -50,7 +50,7 @@ const AlgorithmManager = () => {
       
       // The apiService will automatically get the token from Amplify
       const response = await apiService.getAlgorithms();
-      setAlgorithms(response.algorithms || []);
+      setAlgorithms(response.items || []); // Backend returns { items: [...] }
     } catch (err) {
       console.error('Error loading algorithms:', err);
       setError('Errore nel caricamento degli algoritmi: ' + (err.message || 'Errore sconosciuto'));
@@ -80,14 +80,14 @@ const AlgorithmManager = () => {
     setDeleteDialogOpen(true);
   };
 
-  const confirmDelete = async () => {
+  const confirmDelete = async (hard = false) => {
     if (!algorithmToDelete) return;
     
     try {
-      await apiService.deleteAlgorithm(algorithmToDelete.id);
+      await apiService.deleteAlgorithm(algorithmToDelete.algorithm_id, hard);
       
       // Remove from local state
-      setAlgorithms(prev => prev.filter(a => a.id !== algorithmToDelete.id));
+      setAlgorithms(prev => prev.filter(a => a.algorithm_id !== algorithmToDelete.algorithm_id));
       setDeleteDialogOpen(false);
       setAlgorithmToDelete(null);
     } catch (err) {
@@ -99,17 +99,23 @@ const AlgorithmManager = () => {
   const handleFormSave = async (algorithmData) => {
     try {
       if (selectedAlgorithm) {
-        // Update existing algorithm
-        const updated = await apiService.updateAlgorithm(selectedAlgorithm.id, algorithmData);
-        setAlgorithms(prev => prev.map(a => a.id === selectedAlgorithm.id ? updated : a));
+        // Update existing algorithm using PATCH
+        const updated = await apiService.updateAlgorithm(selectedAlgorithm.algorithm_id, algorithmData);
+        setAlgorithms(prev => prev.map(a => a.algorithm_id === selectedAlgorithm.algorithm_id ? { ...a, ...algorithmData } : a));
       } else {
-        // Create new algorithm
+        // Create new algorithm using POST
         const created = await apiService.createAlgorithm(algorithmData);
-        setAlgorithms(prev => [...prev, created]);
+        // Add the new algorithm to the list with the response data
+        setAlgorithms(prev => [...prev, { ...algorithmData, status: 'REGISTERED' }]);
       }
       
       setFormOpen(false);
       setSelectedAlgorithm(null);
+      
+      // Reload algorithms to get updated status
+      setTimeout(() => {
+        loadAlgorithms();
+      }, 1000);
     } catch (err) {
       console.error('Error saving algorithm:', err);
       throw new Error('Errore nel salvataggio dell\'algoritmo: ' + (err.message || 'Errore sconosciuto'));
@@ -213,12 +219,12 @@ const AlgorithmManager = () => {
       ) : (
         <Grid container spacing={3}>
           {algorithms.map((algorithm) => (
-            <Grid item xs={12} md={6} lg={4} key={algorithm.id}>
+            <Grid item xs={12} md={6} lg={4} key={algorithm.algorithm_id}>
               <Card className="algorithm-card" sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
                 <CardContent sx={{ flexGrow: 1 }}>
                   <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2}>
                     <Typography variant="h6" component="h3" noWrap>
-                      {algorithm.name}
+                      {algorithm.algorithm_id}
                     </Typography>
                     <Chip
                       label={getStatusLabel(algorithm.status)}
@@ -229,19 +235,19 @@ const AlgorithmManager = () => {
                   </Box>
                   
                   <Typography variant="body2" color="text.secondary" paragraph>
-                    {algorithm.description || 'Nessuna descrizione disponibile'}
+                    URI: {algorithm.image_uri || 'Non specificato'}
                   </Typography>
                   
                   <Box sx={{ mt: 2 }}>
                     <Typography variant="caption" display="block" color="text.secondary">
-                      <strong>Versione:</strong> {algorithm.version || 'N/A'}
+                      <strong>CPU:</strong> {algorithm.cpu || 'N/A'} | <strong>Memoria:</strong> {algorithm.memory || 'N/A'} MB
                     </Typography>
                     <Typography variant="caption" display="block" color="text.secondary">
-                      <strong>CPU:</strong> {algorithm.cpu || 'N/A'} | <strong>Memoria:</strong> {algorithm.memory || 'N/A'}
+                      <strong>Istanze:</strong> {algorithm.desired_count || 1} | <strong>Comando:</strong> {Array.isArray(algorithm.command) ? algorithm.command.join(' ') : algorithm.command || '/app/worker.sh'}
                     </Typography>
-                    {algorithm.image && (
-                      <Typography variant="caption" display="block" color="text.secondary" noWrap>
-                        <strong>Immagine:</strong> {algorithm.image}
+                    {algorithm.env && Object.keys(algorithm.env).length > 0 && (
+                      <Typography variant="caption" display="block" color="text.secondary">
+                        <strong>Env vars:</strong> {Object.keys(algorithm.env).length} configurate
                       </Typography>
                     )}
                   </Box>
@@ -296,17 +302,23 @@ const AlgorithmManager = () => {
       >
         <DialogTitle>Conferma Eliminazione</DialogTitle>
         <DialogContent>
-          <Typography>
-            Sei sicuro di voler eliminare l'algoritmo "{algorithmToDelete?.name}"?
-            Questa operazione non può essere annullata.
+          <Typography paragraph>
+            Sei sicuro di voler eliminare l'algoritmo "{algorithmToDelete?.algorithm_id}"?
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            • <strong>Scala a zero:</strong> Ferma l'algoritmo ma mantiene la configurazione<br/>
+            • <strong>Elimina completamente:</strong> Rimuove tutto (non reversibile)
           </Typography>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setDeleteDialogOpen(false)}>
             Annulla
           </Button>
-          <Button onClick={confirmDelete} color="error" variant="contained">
-            Elimina
+          <Button onClick={() => confirmDelete(false)} color="warning" variant="outlined">
+            Scala a Zero
+          </Button>
+          <Button onClick={() => confirmDelete(true)} color="error" variant="contained">
+            Elimina Completamente
           </Button>
         </DialogActions>
       </Dialog>
