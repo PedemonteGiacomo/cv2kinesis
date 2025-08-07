@@ -64,16 +64,14 @@ function App() {
   React.useEffect(() => {
     async function fetchAlgorithms() {
       try {
-        const res = await fetch(`${API_BASE}/admin/algorithms`, {
-          headers: {
-            'x-admin-key': process.env.REACT_APP_ADMIN_KEY || ''
-          }
-        });
+        // Use public endpoint instead of admin endpoint
+        const res = await fetch(`${API_BASE}/algorithms`);
         const data = await res.json();
         const activeAlgos = (data.items || []).filter(a => a.status === 'ACTIVE');
         setAlgorithms(activeAlgos);
         if (activeAlgos.length > 0) setAlgorithm(activeAlgos[0].algorithm_id);
       } catch (e) {
+        console.error('Error fetching algorithms:', e);
         setAlgorithms([]);
       }
     }

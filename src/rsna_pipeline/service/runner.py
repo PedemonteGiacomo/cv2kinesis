@@ -41,17 +41,25 @@ def load_series(folder: Path):
 
 def _get_presigned_from_pacs(pacs: dict[str, str]) -> list[dict]:
     base = os.environ["PACS_API_BASE"]
+    
+    # Fix: Ensure base URL has a scheme (http:// or https://)
+    if not base.startswith(('http://', 'https://')):
+        base = f"http://{base}"
+        print(f"[runner] Added http scheme to PACS_API_BASE: {base}")
+    
     hdrs = {"x-api-key": os.environ["PACS_API_KEY"]}
     scope = pacs.get("scope", "image")
     if scope == "image":
         # Usa lo stesso path della preview React: /studies/{study_id}/images/{series_id}/{image_id}
         ep = f"{base}/studies/{pacs['study_id']}/images/{pacs['series_id']}/{pacs['image_id']}"
+        print(f"[runner] Making request to: {ep}")
         r = requests.get(ep, headers=hdrs, timeout=10)
         print(f"[runner] GET {ep} → {r.status_code}")
         r.raise_for_status()
         return [r.json()]
     if scope == "series":
         ep = f"{base}/studies/{pacs['study_id']}/images"
+        print(f"[runner] Making request to: {ep}")
         r = requests.get(
             ep, headers=hdrs, timeout=10, params={"series_id": pacs["series_id"]}
         )

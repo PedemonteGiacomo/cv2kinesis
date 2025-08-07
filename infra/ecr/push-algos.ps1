@@ -1,5 +1,5 @@
 param(
-  [string] $Region  = "us-east-1",
+  [string] $Region  = "eu-central-1",
   [string] $Account = "544547773663"
 )
 
