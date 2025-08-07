@@ -1,4 +1,4 @@
-# Gestione completa dell'architettura MIP post-deployment
+# Complete management of MIP architecture post-deployment
 param(
     [Parameter(Mandatory=$true)]
     [ValidateSet("list-algorithms", "register-algorithm", "update-algorithm", "delete-algorithm", 

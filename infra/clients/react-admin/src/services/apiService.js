@@ -66,11 +66,11 @@ class ApiService {
           // For 409 Conflict (algorithm already exists), provide detailed error
           if (response.status === 409 && errorData.existing_algorithm) {
             const existing = errorData.existing_algorithm;
-            errorMessage = `${errorData.message}\n\nAlgoritmo esistente:\n` +
+            errorMessage = `${errorData.message}\n\nExisting algorithm:\n` +
               `• ID: ${existing.algorithm_id}\n` +
               `• Status: ${existing.status}\n` +
-              `• CPU: ${existing.cpu}, Memoria: ${existing.memory}MB\n` +
-              `• Immagine: ${existing.image_uri}\n\n` +
+              `• CPU: ${existing.cpu}, Memory: ${existing.memory}MB\n` +
+              `• Image: ${existing.image_uri}\n\n` +
               `${errorData.suggestion}`;
           }
         } catch (e) {
@@ -93,7 +93,7 @@ class ApiService {
       }
     } catch (error) {
       if (error.name === 'TypeError' && error.message.includes('fetch')) {
-        throw new Error('Errore di connessione: impossibile raggiungere il server');
+        throw new Error('Connection error: unable to reach server');
       }
       throw error;
     }

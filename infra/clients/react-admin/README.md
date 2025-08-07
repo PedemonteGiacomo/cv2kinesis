@@ -1,16 +1,16 @@
 # MIP Admin Portal
 
-Un'applicazione React per la gestione degli algoritmi di elaborazione delle immagini mediche.
+A React application for managing medical image processing algorithms.
 
-## Caratteristiche
+## Features
 
-- 🔐 **Autenticazione sicura** con AWS Cognito
-- 📊 **Dashboard** per visualizzare tutti gli algoritmi
-- ➕ **Creazione algoritmi** con form guidato
-- ✏️ **Modifica algoritmi** esistenti
-- 🗑️ **Eliminazione** sicura degli algoritmi
-- 🚀 **Deploy automatico** su AWS Fargate + CloudFront
-- 📱 **Responsive design** con Material-UI
+- 🔐 **Secure Authentication** with AWS Cognito
+- 📊 **Dashboard** to view all algorithms
+- ➕ **Algorithm Creation** with guided form
+- ✏️ **Edit Algorithms** existing ones
+- 🗑️ **Safe Deletion** of algorithms
+- 🚀 **Automatic Deploy** on AWS Fargate + CloudFront
+- 📱 **Responsive Design** with Material-UI
 
 ## Architettura
 
@@ -22,35 +22,35 @@ Un'applicazione React per la gestione degli algoritmi di elaborazione delle imma
                                    [DynamoDB]
 ```
 
-## Tecnologie
+## Technology Stack
 
 - **Frontend**: React 18, Material-UI, AWS Amplify
-- **Autenticazione**: AWS Cognito
-- **Containerizzazione**: Docker + nginx
+- **Authentication**: AWS Cognito
+- **Containerization**: Docker + nginx
 - **Deploy**: AWS Fargate, CloudFront, ALB
 - **API**: AWS API Gateway, Lambda
 
-## Setup Locale
+## Local Setup
 
-### Prerequisiti
+### Prerequisites
 
 - Node.js 18+
 - Docker
-- AWS CLI configurato
+- AWS CLI configured
 
-### Installazione
+### Installation
 
 ```bash
-# Clona e installa dipendenze
+# Clone and install dependencies
 cd infra/clients/react-admin
 npm install
 
-# Copia e configura le variabili di ambiente
+# Copy and configure environment variables
 cp .env.example .env.local
-# Modifica .env.local con i tuoi valori
+# Edit .env.local with your values
 ```
 
-### Configurazione `.env.local`
+### `.env.local` Configuration
 
 ```env
 REACT_APP_AWS_REGION=us-east-1
@@ -60,13 +60,13 @@ REACT_APP_API_BASE_URL=https://your-api-gateway-url.execute-api.us-east-1.amazon
 REACT_APP_ADMIN_KEY=your-admin-key-here
 ```
 
-### Avvio Sviluppo
+### Development Start
 
 ```bash
-# Avvia il server di sviluppo
+# Start development server
 npm start
 
-# L'app sarà disponibile su http://localhost:3000
+# App will be available at http://localhost:3000
 ```
 
 ### Build
@@ -108,60 +108,60 @@ cdk deploy AdminStack
 
 ## Utilizzo
 
-### Primo Accesso
+### First Access
 
-1. Dopo il deploy, vai all'URL di CloudFront mostrato negli output
-2. Clicca su "Create Account" per creare il primo utente
-3. Verifica l'email ricevuta da Cognito
-4. Effettua il login
+1. After deployment, go to CloudFront URL shown in outputs
+2. Click "Create Account" to create first user
+3. Verify email received from Cognito
+4. Login
 
-### Gestione Algoritmi
+### Algorithm Management
 
-#### Creare un Nuovo Algoritmo
+#### Create New Algorithm
 
-1. Clicca su "Nuovo Algoritmo"
-2. Compila i campi obbligatori:
-   - **Nome**: Identificativo dell'algoritmo
-   - **Versione**: Versione semantica (es: 1.0.0)
-   - **Immagine Docker**: URI completo dell'immagine
-   - **CPU/Memoria**: Risorse richieste
-3. Configura le opzioni avanzate se necessario:
-   - Variabili di ambiente
-   - Comandi di avvio
-   - Porte esposte
-4. Clicca "Crea"
+1. Click "New Algorithm"
+2. Fill required fields:
+   - **Name**: Algorithm identifier
+   - **Version**: Semantic version (ex: 1.0.0)
+   - **Docker Image**: Full image URI
+   - **CPU/Memory**: Required resources
+3. Configure advanced options if needed:
+   - Environment variables
+   - Startup commands
+   - Exposed ports
+4. Click "Create"
 
-#### Modificare un Algoritmo
+#### Edit Algorithm
 
-1. Clicca "Modifica" sulla card dell'algoritmo
-2. Aggiorna i campi necessari
-3. Clicca "Aggiorna"
+1. Click "Edit" on algorithm card
+2. Update necessary fields
+3. Click "Update"
 
-#### Eliminare un Algoritmo
+#### Delete Algorithm
 
-1. Clicca "Elimina" sulla card dell'algoritmo
-2. Conferma l'eliminazione
+1. Click "Delete" on algorithm card
+2. Confirm deletion
 
-### Stati degli Algoritmi
+### Algorithm States
 
-- **🟢 Attivo**: Algoritmo in esecuzione e pronto a ricevere richieste
-- **🔴 Inattivo**: Algoritmo fermato o non disponibile
-- **🟡 In attesa**: Algoritmo in fase di avvio o aggiornamento
+- **🟢 Active**: Algorithm running and ready to receive requests
+- **🔴 Inactive**: Algorithm stopped or unavailable
+- **🟡 Pending**: Algorithm starting up or updating
 
-## Struttura del Progetto
+## Project Structure
 
 ```
 react-admin/
 ├── public/
-│   └── index.html          # Template HTML
+│   └── index.html          # HTML template
 ├── src/
 │   ├── components/
-│   │   ├── AlgorithmManager.js    # Componente principale
-│   │   └── AlgorithmForm.js       # Form per algoritmi
+│   │   ├── AlgorithmManager.js    # Main component
+│   │   └── AlgorithmForm.js       # Algorithm form
 │   ├── services/
-│   │   └── apiService.js          # Client per API Gateway
-│   ├── App.js              # Componente root con Cognito
-│   ├── App.css             # Stili globali
+│   │   └── apiService.js          # API Gateway client
+│   ├── App.js              # Root component with Cognito
+│   ├── App.css             # Global styles
 │   └── index.js            # Entry point
 ├── Dockerfile              # Container per produzione
 ├── nginx.conf              # Configurazione nginx

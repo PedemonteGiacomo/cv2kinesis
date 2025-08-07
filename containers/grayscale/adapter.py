@@ -51,7 +51,7 @@ def _convert_dicom_to_png(dicom_path: Path, png_path: Path):
         # Estrai pixel array
         pixel_array = dicom.pixel_array
         
-        # Normalizza a 0-255
+        # Normalize to 0-255
         if pixel_array.max() > 255:
             pixel_array = ((pixel_array - pixel_array.min()) / 
                           (pixel_array.max() - pixel_array.min()) * 255).astype(np.uint8)

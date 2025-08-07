@@ -1,4 +1,4 @@
-# Script completo per deploy e test della nuova architettura
+# Complete script for deployment and testing of the new architecture
 param(
     [string] $Region = "us-east-1",
     [string] $Account = "544547773663",
@@ -14,14 +14,14 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-Write-Host "Deploy completo architettura dinamica MIP" -ForegroundColor Green
+Write-Host "Complete deployment of dynamic MIP architecture" -ForegroundColor Green
 Write-Host "Region: $Region, Account: $Account" -ForegroundColor Yellow
 
 
-# Torna alla root del progetto
+# Return to project root
 Push-Location (Join-Path $PSScriptRoot "..")
 
-# Spostati nella cartella infra per i comandi CDK
+# Move to infra folder for CDK commands
 Push-Location $PSScriptRoot
 
 try {

@@ -53,7 +53,7 @@ const AlgorithmManager = () => {
       setAlgorithms(response.items || []); // Backend returns { items: [...] }
     } catch (err) {
       console.error('Error loading algorithms:', err);
-      setError('Errore nel caricamento degli algoritmi: ' + (err.message || 'Errore sconosciuto'));
+      setError('Error loading algorithms: ' + (err.message || 'Unknown error'));
     } finally {
       setLoading(false);
     }
@@ -92,7 +92,7 @@ const AlgorithmManager = () => {
       setAlgorithmToDelete(null);
     } catch (err) {
       console.error('Error deleting algorithm:', err);
-      setError('Errore nell\'eliminazione dell\'algoritmo: ' + (err.message || 'Errore sconosciuto'));
+      setError('Error deleting algorithm: ' + (err.message || 'Unknown error'));
     }
   };
 
@@ -118,7 +118,7 @@ const AlgorithmManager = () => {
       }, 1000);
     } catch (err) {
       console.error('Error saving algorithm:', err);
-      throw new Error('Errore nel salvataggio dell\'algoritmo: ' + (err.message || 'Errore sconosciuto'));
+      throw new Error('Error saving algorithm: ' + (err.message || 'Unknown error'));
     }
   };
 
@@ -141,17 +141,17 @@ const AlgorithmManager = () => {
   const getStatusLabel = (status) => {
     switch (status?.toLowerCase()) {
       case 'active':
-        return 'Attivo';
+        return 'Active';
       case 'inactive':
-        return 'Inattivo';
+        return 'Inactive';
       case 'pending':
-        return 'In attesa';
+        return 'Pending';
       case 'running':
-        return 'In esecuzione';
+        return 'Running';
       case 'stopped':
-        return 'Fermato';
+        return 'Stopped';
       default:
-        return status || 'Sconosciuto';
+        return status || 'Unknown';
     }
   };
 
@@ -160,7 +160,7 @@ const AlgorithmManager = () => {
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
         <CircularProgress />
         <Typography variant="body1" sx={{ ml: 2 }}>
-          Caricamento algoritmi...
+          Loading algorithms...
         </Typography>
       </Box>
     );
@@ -176,10 +176,10 @@ const AlgorithmManager = () => {
 
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
         <Typography variant="h5" component="h2">
-          Algoritmi di Elaborazione
+          Processing Algorithms
         </Typography>
         <Box>
-          <Tooltip title="Aggiorna lista">
+          <Tooltip title="Refresh list">
             <Button
               variant="outlined"
               startIcon={refreshing ? <CircularProgress size={16} /> : <RefreshIcon />}
@@ -187,7 +187,7 @@ const AlgorithmManager = () => {
               disabled={refreshing}
               sx={{ mr: 1 }}
             >
-              Aggiorna
+              Refresh
             </Button>
           </Tooltip>
           <Button
@@ -195,7 +195,7 @@ const AlgorithmManager = () => {
             startIcon={<AddIcon />}
             onClick={handleCreateAlgorithm}
           >
-            Nuovo Algoritmo
+            New Algorithm
           </Button>
         </Box>
       </Box>
@@ -203,17 +203,17 @@ const AlgorithmManager = () => {
       {algorithms.length === 0 ? (
         <Paper sx={{ p: 4, textAlign: 'center' }}>
           <Typography variant="h6" color="text.secondary" gutterBottom>
-            Nessun algoritmo configurato
+            No algorithms configured
           </Typography>
           <Typography variant="body2" color="text.secondary" paragraph>
-            Inizia creando il tuo primo algoritmo di elaborazione immagini
+            Start by creating your first image processing algorithm
           </Typography>
           <Button
             variant="contained"
             startIcon={<AddIcon />}
             onClick={handleCreateAlgorithm}
           >
-            Crea Primo Algoritmo
+            Create First Algorithm
           </Button>
         </Paper>
       ) : (
@@ -235,19 +235,19 @@ const AlgorithmManager = () => {
                   </Box>
                   
                   <Typography variant="body2" color="text.secondary" paragraph>
-                    URI: {algorithm.image_uri || 'Non specificato'}
+                    URI: {algorithm.image_uri || 'Not specified'}
                   </Typography>
                   
                   <Box sx={{ mt: 2 }}>
                     <Typography variant="caption" display="block" color="text.secondary">
-                      <strong>CPU:</strong> {algorithm.cpu || 'N/A'} | <strong>Memoria:</strong> {algorithm.memory || 'N/A'} MB
+                      <strong>CPU:</strong> {algorithm.cpu || 'N/A'} | <strong>Memory:</strong> {algorithm.memory || 'N/A'} MB
                     </Typography>
                     <Typography variant="caption" display="block" color="text.secondary">
-                      <strong>Istanze:</strong> {algorithm.desired_count || 1} | <strong>Comando:</strong> {Array.isArray(algorithm.command) ? algorithm.command.join(' ') : algorithm.command || '/app/worker.sh'}
+                      <strong>Instances:</strong> {algorithm.desired_count || 1} | <strong>Command:</strong> {Array.isArray(algorithm.command) ? algorithm.command.join(' ') : algorithm.command || '/app/worker.sh'}
                     </Typography>
                     {algorithm.env && Object.keys(algorithm.env).length > 0 && (
                       <Typography variant="caption" display="block" color="text.secondary">
-                        <strong>Env vars:</strong> {Object.keys(algorithm.env).length} configurate
+                        <strong>Env vars:</strong> {Object.keys(algorithm.env).length} configured
                       </Typography>
                     )}
                   </Box>
@@ -259,7 +259,7 @@ const AlgorithmManager = () => {
                     startIcon={<EditIcon />}
                     onClick={() => handleEditAlgorithm(algorithm)}
                   >
-                    Modifica
+                    Edit
                   </Button>
                   <Button
                     size="small"
@@ -267,7 +267,7 @@ const AlgorithmManager = () => {
                     startIcon={<DeleteIcon />}
                     onClick={() => handleDeleteAlgorithm(algorithm)}
                   >
-                    Elimina
+                    Delete
                   </Button>
                 </CardActions>
               </Card>
@@ -284,7 +284,7 @@ const AlgorithmManager = () => {
         fullWidth
       >
         <DialogTitle>
-          {selectedAlgorithm ? 'Modifica Algoritmo' : 'Nuovo Algoritmo'}
+          {selectedAlgorithm ? 'Edit Algorithm' : 'New Algorithm'}
         </DialogTitle>
         <DialogContent>
           <AlgorithmForm
@@ -300,25 +300,25 @@ const AlgorithmManager = () => {
         open={deleteDialogOpen}
         onClose={() => setDeleteDialogOpen(false)}
       >
-        <DialogTitle>Conferma Eliminazione</DialogTitle>
+        <DialogTitle>Confirm Deletion</DialogTitle>
         <DialogContent>
           <Typography paragraph>
-            Sei sicuro di voler eliminare l'algoritmo "{algorithmToDelete?.algorithm_id}"?
+            Are you sure you want to delete algorithm "{algorithmToDelete?.algorithm_id}"?
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            • <strong>Scala a zero:</strong> Ferma l'algoritmo ma mantiene la configurazione<br/>
-            • <strong>Elimina completamente:</strong> Rimuove tutto (non reversibile)
+            • <strong>Scale to zero:</strong> Stops the algorithm but keeps configuration<br/>
+            • <strong>Delete completely:</strong> Removes everything (not reversible)
           </Typography>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setDeleteDialogOpen(false)}>
-            Annulla
+            Cancel
           </Button>
           <Button onClick={() => confirmDelete(false)} color="warning" variant="outlined">
-            Scala a Zero
+            Scale to Zero
           </Button>
           <Button onClick={() => confirmDelete(true)} color="error" variant="contained">
-            Elimina Completamente
+            Delete Completely
           </Button>
         </DialogActions>
       </Dialog>

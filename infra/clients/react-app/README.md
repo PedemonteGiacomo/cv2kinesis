@@ -1,8 +1,13 @@
-# Frontend React di test per provisioning, PACS preview e processing
+# React Frontend for provisioning, PACS preview and processing
 
 ## Setup
 
-1. Installa le dipendenze:
+1. Instal## User Flow
+
+- Fill in PACS fields and click Load Preview → see original image
+- Provision queue → get client_id and queue_url
+- Start processing → job starts on SQS/Fargate
+- See loader "Waiting..." then, when finished, processed image appears directlydipendenze:
    ```bash
    npm ci --prefix infra/clients/react-app
    ```
@@ -45,9 +50,9 @@ async function pollResult(jid) {
 }
 ```
 
-## Abilita CORS su PACS API
+## Enable CORS on PACS API
 
-Nel tuo `app.py` FastAPI aggiungi:
+In your `app.py` FastAPI add:
 ```python
 from fastapi.middleware.cors import CORSMiddleware
 app.add_middleware(
@@ -57,28 +62,28 @@ app.add_middleware(
     allow_headers=["*"],
 )
 ```
-Ricostruisci e ridistribuisci il container PACS API:
+Rebuild and redeploy the PACS API container:
 ```bash
 docker build -t mip-pacs-api -f pacs_api/Dockerfile .
-# push su ECR e deploy PacsApiStack
+# push to ECR and deploy PacsApiStack
 ```
 
 ## Deploy & test
 
-1. Aggiorna PACS-API container & deploy:
+1. Update PACS-API container & deploy:
    ```bash
    cd new_image_processing_pipeline
    docker build -t mip-pacs-api -f pacs_api/Dockerfile .
-   # push su ECR e:
+   # push to ECR and:
    cd infra
    cdk deploy PacsApiStack --require-approval never
    ```
-2. Deploy pipeline e lambda:
+2. Deploy pipeline and lambda:
    ```bash
    cd infra
    cdk deploy ImgPipeline --require-approval never
    ```
-3. Frontend React:
+3. React Frontend:
    ```bash
    cd infra/clients/react-app
    npm ci

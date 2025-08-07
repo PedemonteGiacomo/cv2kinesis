@@ -93,15 +93,15 @@ def main():
                 node.add_environment("PACS_API_KEY", "")
 
 
-    # Migliora la leggibilità del diagramma con layout left-right e best practice
-    # Puoi anche personalizzare il filtro o aggiungere tag/commenti alle risorse
+    # Improve diagram readability with left-right layout and best practices
+    # You can also customize the filter or add tags/comments to resources
     graph = CdkGraph(
         app,
         plugins=[
             CdkGraphDiagramPlugin(
                 defaults={
                     "filter_plan": {
-                        "preset": FilterPreset.COMPACT,  # Puoi provare anche NON_EXTRANEOUS o personalizzare
+                        "preset": FilterPreset.COMPACT,  # You can also try NON_EXTRANEOUS or customize
                     },
                     "theme": "dark"
                 },

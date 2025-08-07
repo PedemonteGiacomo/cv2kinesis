@@ -5,10 +5,10 @@ param(
 
 $repo = "$Account.dkr.ecr.$Region.amazonaws.com/mip-algos"
 
-# Torna alla root del progetto
+# Return to project root
 Push-Location (Join-Path $PSScriptRoot "..\..")
 
-# Ricostruisci le immagini
+# Rebuild the images
 docker build -t mip-base:latest             -f containers/base/Dockerfile .
 docker build -t mip-processing_1             -f containers/processing_1/Dockerfile .
 docker build -t mip-processing_6             -f containers/processing_6/Dockerfile .

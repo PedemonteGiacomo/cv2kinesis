@@ -45,7 +45,7 @@ function App() {
       console.log('[extractDicomMeta] Estratti metadati:', dataset);
       return dataset;
     } catch (e) {
-      console.error('[extractDicomMeta] Errore parsing DICOM:', e);
+      console.error('[extractDicomMeta] DICOM parsing error:', e);
       return null;
     }
   }
@@ -131,7 +131,7 @@ function App() {
 
   async function startJob() {
     if (!clientId) {
-      alert('Client non provisionato. Ricarica la pagina.');
+      alert('Client not provisioned. Refresh the page.');
       return;
     }
     const jid = uuid();
@@ -256,7 +256,7 @@ function App() {
                   )}
                   {wsError && (
                     <Alert severity="error" sx={{ mb: 2, fontWeight:600, fontSize:15, borderRadius:2 }}>
-                      Real-time non disponibile, ricarica la pagina o riprova più tardi.
+                      Real-time not available, refresh the page or try again later.
                     </Alert>
                   )}
                 </Box>

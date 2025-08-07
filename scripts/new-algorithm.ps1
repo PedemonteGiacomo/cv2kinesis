@@ -1,4 +1,4 @@
-# Generatore automatico di template per nuovi algoritmi MIP
+# Automatic template generator for new MIP algorithms
 param(
     [Parameter(Mandatory=$true)]
     [string] $AlgorithmName,
@@ -14,7 +14,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-# Validazione nome algoritmo
+# Algorithm name validation
 if ($AlgorithmName -notmatch '^[a-z][a-z0-9_]*$') {
     Write-Error "Algorithm name must be lowercase, start with letter, contain only letters, numbers, underscores"
 }

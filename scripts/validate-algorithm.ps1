@@ -1,4 +1,4 @@
-# Script di validazione per algoritmi MIP
+# Validation script for MIP algorithms
 param(
     [Parameter(Mandatory=$true)]
     [string] $AlgorithmPath,

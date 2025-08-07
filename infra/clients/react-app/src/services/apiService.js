@@ -49,7 +49,7 @@ class ApiService {
       }
     } catch (error) {
       if (error.name === 'TypeError' && error.message.includes('fetch')) {
-        throw new Error('Errore di connessione: impossibile raggiungere il server');
+        throw new Error('Connection error: unable to reach the server');
       }
       throw error;
     }

@@ -1,7 +1,19 @@
 ## 🏗️ Architettura Dinamica
+## 5️⃣ End-to-end user flow
 
-```
-Client → API REST → DynamoDB Registry → SQS Requests → Fargate → SQS Results.fifo → Lambda ResultPush → WebSocket API → Client
+1. **PACS Preview**
+   - Enter `study_id`, `series_id`, `image_id`, `scope=image`
+   - Click _Load Preview_ → view original image
+2. **Client provision**
+   - Click _Provision client_ → receive only `client_id`
+3. **Start processing**
+   - Click _Start processing_ → send POST to `$API_BASE/process/processing_1` with PACS payload + `client_id`
+   - Lambda Router puts job on SQS Requests
+   - Fargate Worker processes and publishes to ResultsQueue.fifo
+   - Lambda ResultPush sends result via WebSocket to correct client
+4. **Receive results (push)**
+   - Frontend opens WebSocket to `wss://.../prod?client_id=...`
+   - When message arrives (`job_id`), see processed image API REST → DynamoDB Registry → SQS Requests → Fargate → SQS Results.fifo → Lambda ResultPush → WebSocket API → Client
 ```
 
 ### Componenti Principali
@@ -87,53 +99,53 @@ Client → API REST → DynamoDB Registry → SQS Requests → Fargate → SQS R
 
 ---
 
-## 🛠️ Prerequisiti
+## 🛠️ Prerequisites
 
-- AWS CLI configurato (CloudFormation, ECR, ECS, SQS, SNS, Lambda, IAM)
+- AWS CLI configured (CloudFormation, ECR, ECS, SQS, SNS, Lambda, IAM)
 - AWS CDK v2
 - Docker
-- PowerShell (Windows) o Bash (Linux/macOS)
-- Node.js + npm (per il frontend React)
+- PowerShell (Windows) or Bash (Linux/macOS)
+- Node.js + npm (for React frontend)
 
 ---
 
-## 1️⃣ Preparazione ECR
+## 1️⃣ ECR Preparation
 
-**Crea i repository e push delle immagini**
+**Create repositories and push images**
 
 ```powershell
 cd infra/ecr
 ./create-ecr-repos.ps1 -Region <REGION> -Account <ACCOUNT_ID>
-docker build --no-cache -t mip-base:latest -f containers/base/Dockerfile . #se si vuole ripartire alla base senza cache
+docker build --no-cache -t mip-base:latest -f containers/base/Dockerfile . #if you want to restart from base without cache
 ./push-algos.ps1 -Region <REGION> -Account <ACCOUNT_ID>
 ./push-pacs.ps1 -Region <REGION> -Account <ACCOUNT_ID>
 ```
 
-> _Nota: <REGION> es. eu-central-1 o us-east-1; <ACCOUNT_ID> es. 544547773663._
+> _Note: <REGION> ex. eu-central-1 or us-east-1; <ACCOUNT_ID> ex. 544547773663._
 
 ---
 
-## 2️⃣ Deploy infrastruttura con CDK
+## 2️⃣ Infrastructure Deployment with CDK
 
-**Deploy completo con script automatico:**
+**Complete deployment with automatic script:**
 ```powershell
 cd infra
 .\deploy-complete.ps1 -Region us-east-1 -Account 544547773663
 ```
 
-**Oppure manuale:**
+**Or manual:**
 ```bash
 cd infra
-npm install   # solo se ci sono dipendenze node
+npm install   # only if there are node dependencies
 cdk deploy Imports --require-approval never
 cdk deploy PacsApi --require-approval never
 cdk deploy ImgPipeline --require-approval never
-# oppure
+# or
 cdk deploy --all --require-approval never
 ```
 
-**Output deploy:**
-- DNS PACS API LB (`PacsApiLB`)
+**Deploy outputs:**
+- PACS API LB DNS (`PacsApiLB`)
 - API Gateway endpoint (`ProcessingApiEndpoint`)
 - WebSocket endpoint (`WebSocketEndpoint`)
 - ResultsQueueUrl (`ResultsQueueUrl`)

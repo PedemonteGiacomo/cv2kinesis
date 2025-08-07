@@ -1,17 +1,17 @@
-# Configurazione rapida per test algoritmi
-# Modifica questi valori in base al tuo ambiente
+# Quick configuration for algorithm testing
+# Modify these values based on your environment
 
 # AWS Configuration
 $Region = "us-east-1"
 $Account = "544547773663"
 $AdminKey = "dev-admin"
 
-# API Endpoints (verranno popolati dopo il deploy)
+# API Endpoints (will be populated after deployment)
 $ApiBase = $env:API_BASE
 $PacsApiBase = $env:PACS_API_BASE
 $WsEndpoint = $env:WS_ENDPOINT
 
-# Algoritmi di esempio da registrare
+# Example algorithms to register
 $ExampleAlgorithms = @(
     @{
         algo_id = "processing_1"

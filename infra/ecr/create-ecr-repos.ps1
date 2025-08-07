@@ -1,4 +1,4 @@
-# Script PowerShell per creare i repository ECR
+# PowerShell script to create ECR repositories
 param(
   [string] $Region = "us-east-1",
   [string] $Account = "544547773663"

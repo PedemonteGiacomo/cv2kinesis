@@ -1,4 +1,4 @@
-# Test script per le API di amministrazione degli algoritmi (with Cognito authentication)
+# Test script for algorithm administration APIs (with Cognito authentication)
 param(
     [string] $ApiBase = $env:API_BASE,
     [string] $UserPoolId = $env:USER_POOL_ID,
@@ -8,7 +8,7 @@ param(
 )
 
 if (-not $ApiBase) {
-    Write-Error "Variabile API_BASE non impostata. Eseguire prima gen_env.ps1"
+    Write-Error "API_BASE variable not set. Run gen_env.ps1 first"
     exit 1
 }
 

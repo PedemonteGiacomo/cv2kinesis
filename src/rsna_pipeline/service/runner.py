@@ -15,7 +15,7 @@ import pydicom
 import requests
 
 
-import medical_image_processing.processing  # registra gli algoritmi
+import medical_image_processing.processing  # register algorithms
 from medical_image_processing.processing.base import Processor
 from medical_image_processing.utils.dicom_io import load_dicom
 from medical_image_processing.utils.dicom_writer import save_secondary_capture
@@ -166,7 +166,7 @@ def main() -> None:
                 raise
 
             try:
-                # Struttura output: study_id/series_id/image_id_processing_1.dcm
+                # Output structure: study_id/series_id/image_id_processing_1.dcm
                 dest_key = f"{pacs_info['study_id']}/{pacs_info['series_id']}/"
                 # Sostituisci .dcm con _{args.algo}.dcm
                 base_image_name = pacs_info['image_id'].replace('.dcm', f'_{args.algo}.dcm')

@@ -43,7 +43,7 @@ from fastapi import Path
 from typing import Optional
 
 @app.get("/studies/{study_id:path}/images")
-def list_images(study_id: str = Path(..., description="Path completo fino allo study, es: liver1/phantomx_abdomen_pelvis_dataset/D55-01"), series_id: Optional[str] = Query(None)):
+def list_images(study_id: str = Path(..., description="Complete path to study, ex: liver1/phantomx_abdomen_pelvis_dataset/D55-01"), series_id: Optional[str] = Query(None)):
     prefix = f"{study_id}/"
     if series_id:
         prefix += f"{series_id}/"
@@ -61,7 +61,7 @@ def list_images(study_id: str = Path(..., description="Path completo fino allo s
 # Supporta path multipli dopo study_id (es: /studies/liver1/phantomx_abdomen_pelvis_dataset/D55-01/images/300/AiCE_BODY-SHARP_300_172938.900/IM-0135-0001.dcm)
 @app.get("/studies/{study_id:path}/images/{image_path:path}")
 def get_image(
-    study_id: str = Path(..., description="Path completo fino allo study, es: liver1/phantomx_abdomen_pelvis_dataset/D55-01"),
+    study_id: str = Path(..., description="Complete path to study, ex: liver1/phantomx_abdomen_pelvis_dataset/D55-01"),
     image_path: str = Path(..., description="Path relativo all'immagine dopo lo study_id, es: 300/AiCE_BODY-SHARP_300_172938.900/IM-0135-0001.dcm")
 ):
     key = f"{study_id}/{image_path}"

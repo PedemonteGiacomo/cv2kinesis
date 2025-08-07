@@ -117,7 +117,7 @@ function App() {
             <AppBar position="static" color="transparent" elevation={0} sx={{ mt: 2 }}>
               <Toolbar>
                 <Typography variant="body1" sx={{ flexGrow: 1 }}>
-                  Benvenuto, {user?.username}
+                  Welcome, {user?.username}
                 </Typography>
                 <button onClick={signOut}>Sign out</button>
               </Toolbar>
@@ -128,7 +128,7 @@ function App() {
                   Medical Image Processing - Admin Portal
                 </Typography>
                 <Typography variant="body1" color="text.secondary" paragraph>
-                  Gestisci algoritmi di elaborazione delle immagini mediche
+                  Manage medical image processing algorithms
                 </Typography>
                 <AlgorithmManager />
               </Box>

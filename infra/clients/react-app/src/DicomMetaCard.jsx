@@ -32,7 +32,7 @@ export default function DicomMetaCard({ title, meta, compareTo }) {
               let rawValue = meta?.[tag.key];
               let compareValue = compareTo && compareTo[tag.key];
               let highlight = false;
-              // Confronto robusto: se entrambi oggetti, confronto come stringa, altrimenti confronto diretto
+              // Robust comparison: if both are objects, compare as strings, otherwise direct comparison
               if (compareTo && compareTo.hasOwnProperty(tag.key)) {
                 if (typeof rawValue === 'object' && typeof compareValue === 'object') {
                   highlight = JSON.stringify(rawValue) !== JSON.stringify(compareValue);
@@ -40,7 +40,7 @@ export default function DicomMetaCard({ title, meta, compareTo }) {
                   highlight = String(rawValue ?? '') !== String(compareValue ?? '');
                 }
               }
-              // Per la visualizzazione, normalizza value come prima
+              // For display, normalize value as before
               let value = rawValue || '';
               if (value && typeof value === 'object') {
                 if (value.Alphabetic) value = value.Alphabetic;

@@ -34,7 +34,7 @@ function App() {
             MIP Algorithm Catalog
           </Typography>
           <Typography variant="body2" color="inherit">
-            Catalogo Pubblico
+            Public Catalog
           </Typography>
         </Toolbar>
       </AppBar>
@@ -45,8 +45,8 @@ function App() {
             Medical Image Processing - Algorithm Catalog
           </Typography>
           <Typography variant="body1" color="text.secondary" paragraph>
-            Visualizza algoritmi di elaborazione delle immagini mediche disponibili.
-            Questo catalogo è pubblicamente accessibile e non richiede autenticazione.
+            View available medical image processing algorithms.
+            This catalog is publicly accessible and does not require authentication.
           </Typography>
           <AlgorithmViewer />
         </Box>

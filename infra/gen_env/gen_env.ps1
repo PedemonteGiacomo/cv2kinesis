@@ -1,14 +1,14 @@
 param(
-  # nomi degli stack CDK
+  # CDK stack names
   [string] $ImgStack = "ImgPipeline",
   [string] $PacsStack = "PacsApi",
   [string] $AdminStack = "AdminStack"
 )
 
-Write-Host "🔄 Recupero Outputs dallo stack $ImgStack..."
+Write-Host "🔄 Retrieving Outputs from stack $ImgStack..."
 $imgOutputs = (aws cloudformation describe-stacks --stack-name $ImgStack | ConvertFrom-Json).Stacks[0].Outputs
 
-Write-Host "🔄 Recupero Outputs dallo stack $PacsStack..."
+Write-Host "🔄 Retrieving Outputs from stack $PacsStack..."
 $pacsOutputs = (aws cloudformation describe-stacks --stack-name $PacsStack | ConvertFrom-Json).Stacks[0].Outputs
 
 Write-Host "🔄 Recupero Outputs dallo stack $AdminStack..."

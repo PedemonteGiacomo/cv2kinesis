@@ -42,7 +42,7 @@ const AlgorithmViewer = () => {
       setAlgorithms(response.items || []);
     } catch (err) {
       console.error('Error loading algorithms:', err);
-      setError('Errore nel caricamento degli algoritmi: ' + (err.message || 'Errore sconosciuto'));
+      setError('Error loading algorithms: ' + (err.message || 'Unknown error'));
     } finally {
       setLoading(false);
     }
@@ -74,19 +74,19 @@ const AlgorithmViewer = () => {
   const getStatusLabel = (status) => {
     switch (status?.toLowerCase()) {
       case 'active':
-        return 'Attivo';
+        return 'Active';
       case 'inactive':
-        return 'Inattivo';
+        return 'Inactive';
       case 'pending':
-        return 'In attesa';
+        return 'Pending';
       case 'running':
-        return 'In esecuzione';
+        return 'Running';
       case 'stopped':
-        return 'Fermato';
+        return 'Stopped';
       case 'registered':
-        return 'Registrato';
+        return 'Registered';
       default:
-        return status || 'Sconosciuto';
+        return status || 'Unknown';
     }
   };
 
@@ -105,7 +105,7 @@ const AlgorithmViewer = () => {
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
         <CircularProgress />
         <Typography variant="body1" sx={{ ml: 2 }}>
-          Caricamento algoritmi...
+          Loading algorithms...
         </Typography>
       </Box>
     );
@@ -122,23 +122,23 @@ const AlgorithmViewer = () => {
       {/* Public Access Notice */}
       <Paper sx={{ p: 2, mb: 3, bgcolor: 'success.light', color: 'success.contrastText' }}>
         <Typography variant="h6" gutterBottom>
-          Catalogo Algoritmi Pubblico
+          Public Algorithm Catalog
         </Typography>
         <Typography variant="body2">
-          Questa è la visualizzazione pubblica degli algoritmi disponibili. 
-          Non è richiesta autenticazione per consultare questo catalogo.
+          This is the public view of available algorithms. 
+          No authentication is required to view this catalog.
         </Typography>
       </Paper>
 
       {/* Search and Refresh */}
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
         <Typography variant="h5" component="h2">
-          Algoritmi Disponibili
+          Available Algorithms
         </Typography>
         <Box display="flex" alignItems="center" gap={2}>
           <TextField
             size="small"
-            placeholder="Cerca algoritmi..."
+            placeholder="Search algorithms..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             InputProps={{
@@ -150,14 +150,14 @@ const AlgorithmViewer = () => {
             }}
             sx={{ minWidth: 250 }}
           />
-          <Tooltip title="Aggiorna lista">
+          <Tooltip title="Refresh list">
             <Button
               variant="outlined"
               startIcon={refreshing ? <CircularProgress size={16} /> : <RefreshIcon />}
               onClick={handleRefresh}
               disabled={refreshing}
             >
-              Aggiorna
+              Refresh
             </Button>
           </Tooltip>
         </Box>
@@ -166,19 +166,19 @@ const AlgorithmViewer = () => {
       {filteredAlgorithms.length === 0 ? (
         <Paper sx={{ p: 4, textAlign: 'center' }}>
           <Typography variant="h6" color="text.secondary" gutterBottom>
-            {searchTerm ? 'Nessun algoritmo trovato' : 'Nessun algoritmo disponibile'}
+            {searchTerm ? 'No algorithms found' : 'No algorithms available'}
           </Typography>
           <Typography variant="body2" color="text.secondary" paragraph>
             {searchTerm 
-              ? 'Prova a modificare i termini di ricerca'
-              : 'Gli algoritmi verranno mostrati qui una volta configurati'
+              ? 'Try modifying your search terms'
+              : 'Algorithms will be displayed here once configured'
             }
           </Typography>
         </Paper>
       ) : (
         <>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Trovati {filteredAlgorithms.length} algoritmi
+            Found {filteredAlgorithms.length} algorithms
           </Typography>
           
           <Grid container spacing={3}>
@@ -198,7 +198,7 @@ const AlgorithmViewer = () => {
                     </Box>
                     
                     <Typography variant="body2" color="text.secondary" paragraph>
-                      {algorithm.description || 'Nessuna descrizione disponibile'}
+                      {algorithm.description || 'No description available'}
                     </Typography>
                     
                     <Box sx={{ mt: 2 }}>
@@ -206,19 +206,19 @@ const AlgorithmViewer = () => {
                         <strong>ID:</strong> {algorithm.algorithm_id}
                       </Typography>
                       <Typography variant="caption" display="block" color="text.secondary">
-                        <strong>CPU:</strong> {algorithm.cpu || 'N/A'} | <strong>Memoria:</strong> {algorithm.memory || 'N/A'}MB
+                        <strong>CPU:</strong> {algorithm.cpu || 'N/A'} | <strong>Memory:</strong> {algorithm.memory || 'N/A'}MB
                       </Typography>
                       <Typography variant="caption" display="block" color="text.secondary">
-                        <strong>Istanze:</strong> {algorithm.desired_count || 'N/A'}
+                        <strong>Instances:</strong> {algorithm.desired_count || 'N/A'}
                       </Typography>
                       {algorithm.version && (
                         <Typography variant="caption" display="block" color="text.secondary">
-                          <strong>Versione:</strong> {algorithm.version}
+                          <strong>Version:</strong> {algorithm.version}
                         </Typography>
                       )}
                       {algorithm.category && (
                         <Typography variant="caption" display="block" color="text.secondary">
-                          <strong>Categoria:</strong> {algorithm.category}
+                          <strong>Category:</strong> {algorithm.category}
                         </Typography>
                       )}
                     </Box>
@@ -234,7 +234,7 @@ const AlgorithmViewer = () => {
                           ))}
                           {algorithm.tags.length > 3 && (
                             <Typography variant="caption" color="text.secondary">
-                              +{algorithm.tags.length - 3} altri
+                              +{algorithm.tags.length - 3} more
                             </Typography>
                           )}
                         </Box>
